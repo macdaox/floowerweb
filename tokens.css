@@ -1,0 +1,89 @@
+:root {
+  /* Color */
+  --color-ivory: #f3f0e8;
+  --color-stone: #d8d2c5;
+  --color-olive: #73765d;
+  --color-brown: #332d27;
+  --color-charcoal: #222222;
+  --color-sage: #a4aa91;
+  --color-sand: #c8bba5;
+  --color-white: #fffdf8;
+
+  /* Typography */
+  --font-display: "Cormorant Garamond", "Times New Roman", serif;
+  --font-body: Inter, "Helvetica Neue", Arial, sans-serif;
+  --text-display-xl: clamp(4rem, 8vw, 8.75rem);
+  --text-display-lg: clamp(3rem, 5.7vw, 6.5rem);
+  --text-display-md: clamp(2.5rem, 4vw, 4.5rem);
+  --text-heading: clamp(2rem, 2.8vw, 3.5rem);
+  --text-body-lg: clamp(1.125rem, 1.35vw, 1.375rem);
+  --text-body: 1rem;
+  --text-small: 0.8125rem;
+  --text-label: 0.6875rem;
+  --tracking-label: 0.18em;
+  --leading-display: 0.9;
+  --leading-heading: 1;
+  --leading-body: 1.55;
+
+  /* Spacing: 4px base */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-24: 6rem;
+  --space-32: 8rem;
+  --space-40: 10rem;
+
+  /* Layout */
+  --page-max: 120rem;
+  --page-gutter: clamp(1.25rem, 4vw, 4.5rem);
+  --section-space: clamp(6rem, 11vw, 11rem);
+  --grid-columns: 12;
+  --grid-gap: clamp(1rem, 1.6vw, 1.75rem);
+
+  /* Components */
+  --nav-height: 5.5rem;
+  --button-height: 3.5rem;
+  --button-padding-x: 1.75rem;
+  --border-hairline: 1px solid color-mix(in srgb, var(--color-brown) 42%, transparent);
+  --radius: 0;
+
+  /* Motion */
+  --duration-fast: 180ms;
+  --duration-base: 400ms;
+  --duration-slow: 700ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --image-hover-scale: 1.03;
+}
+
+@media (max-width: 1023px) {
+  :root {
+    --nav-height: 4.75rem;
+    --section-space: clamp(5rem, 10vw, 7rem);
+    --grid-columns: 8;
+  }
+}
+
+@media (max-width: 639px) {
+  :root {
+    --page-gutter: 1.25rem;
+    --nav-height: 4.25rem;
+    --section-space: 4.5rem;
+    --grid-columns: 4;
+    --grid-gap: 0.75rem;
+    --text-body: 0.9375rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+    --duration-slow: 0ms;
+    --image-hover-scale: 1;
+  }
+}
