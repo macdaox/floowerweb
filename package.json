@@ -17,8 +17,12 @@
     "@cloudflare/workers-types": "4.20251011.0",
     "@playwright/test": "1.52.0",
     "astro": "5.15.0",
+    "drizzle-kit": "^0.31.4",
     "typescript": "5.8.3",
     "vitest": "2.1.9",
     "wrangler": "4.2.0"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.44.6"
   }
 }
