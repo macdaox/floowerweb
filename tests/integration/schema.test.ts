@@ -1,188 +1,117 @@
-import { readFile } from "node:fs/promises";
-import { createRequire } from "node:module";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createDb } from "../../src/lib/db/client";
-import { seedDemoContent } from "../../scripts/seed";
+import { execFileSync } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-const require = createRequire(import.meta.url);
-const { DatabaseSync } = require("node:sqlite") as {
-  DatabaseSync: new (location: string) => {
-    close(): void;
-    exec(sql: string): void;
-    prepare(sql: string): {
-      all(...values: unknown[]): unknown[];
-      run(...values: unknown[]): unknown;
-    };
-  };
-};
-
+const workspace = resolve(import.meta.dirname, "../..");
 const requiredTables = [
-  "users",
-  "sessions",
-  "categories",
-  "products",
-  "product_images",
-  "spaces",
-  "space_images",
-  "articles",
-  "pages",
-  "media",
-  "inquiries",
-  "inquiry_notes",
-  "subscribers",
-  "settings",
-  "audit_logs",
+  "users", "sessions", "categories", "products", "product_images", "spaces", "space_images",
+  "articles", "pages", "media", "inquiries", "inquiry_interests", "inquiry_notes", "subscribers",
+  "settings", "audit_logs",
 ];
 
 describe("initial D1 schema", () => {
-  let db: TestD1Database;
+  let configDirectory: string;
+  let configPath: string;
 
-  beforeEach(() => {
-    db = new TestD1Database();
+  beforeAll(async () => {
+    configDirectory = await mkdtemp(join(tmpdir(), "everstem-d1-schema-"));
+    configPath = join(configDirectory, "wrangler.toml");
+    await writeFile(
+      configPath,
+      `name = "everstem-schema-test"
+compatibility_date = "2026-09-13"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "everstem-schema-test-${Date.now()}"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "${resolve(workspace, "migrations")}"\n`,
+    );
+    runWrangler(["d1", "migrations", "apply", "DB", "--local", "--config", configPath]);
+  }, 30_000);
+
+  afterAll(async () => {
+    await rm(configDirectory, { force: true, recursive: true });
   });
 
-  afterEach(() => {
-    db.close();
-  });
-
-  it("creates every required table and inquiry status constraint", async () => {
-    await applyMigration(db, "migrations/0001_initial.sql");
-    const names = await tableNames(db);
-
+  it("creates every required table and inquiry status constraint in local D1", () => {
+    const names = query("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").map((row) => row.name);
     expect(names).toEqual(expect.arrayContaining(requiredTables));
-    await expect(insertInquiry(db, "invalid")).rejects.toThrow();
-    await expect(insertInquiry(db, "new")).resolves.toBeUndefined();
+
+    expect(() => execute(validInquiry("invalid"))).toThrow(/CHECK constraint failed/);
+    expect(() => execute(validInquiry("new"))).not.toThrow();
   });
 
-  it("enforces localized slugs, product codes, and content foreign keys", async () => {
-    await applyMigration(db, "migrations/0001_initial.sql");
+  it("enforces localized slugs, product codes, gallery uniqueness, and foreign keys", () => {
     const now = "2026-09-13T00:00:00.000Z";
+    execute(`INSERT INTO categories (id, locale, name, slug, sort_order, status, created_at, updated_at)
+      VALUES ('category-1', 'en', 'Artificial flowers', 'flowers', 0, 'published', '${now}', '${now}');
+      INSERT INTO media (id, object_key, original_filename, mime_type, byte_size, is_deleted, created_at, updated_at)
+      VALUES ('media-1', 'test/image.jpg', 'image.jpg', 'image/jpeg', 1, 0, '${now}', '${now}');
+      INSERT INTO products (id, locale, name, slug, product_code, category_id, specifications_json, status, created_at, updated_at)
+      VALUES ('product-1', 'en', 'Magnolia stem', 'magnolia-stem', 'ES-MAG-001', 'category-1', '{}', 'published', '${now}', '${now}');
+      INSERT INTO product_images (id, product_id, media_id, created_at) VALUES ('product-image-1', 'product-1', 'media-1', '${now}')`);
+    expect(() => execute(`INSERT INTO categories (id, locale, name, slug, sort_order, status, created_at, updated_at)
+      VALUES ('category-2', 'en', 'Duplicate', 'flowers', 1, 'published', '${now}', '${now}')`)).toThrow(/UNIQUE constraint failed/);
+    expect(() => execute(`INSERT INTO products (id, locale, name, slug, product_code, category_id, specifications_json, status, created_at, updated_at)
+      VALUES ('product-2', 'en', 'Duplicate code', 'magnolia-stem-two', 'ES-MAG-001', 'category-1', '{}', 'published', '${now}', '${now}')`)).toThrow(/UNIQUE constraint failed/);
+    expect(() => execute(`INSERT INTO products (id, locale, name, slug, product_code, category_id, specifications_json, status, created_at, updated_at)
+      VALUES ('product-3', 'en', 'Orphan', 'orphan-stem', 'ES-ORP-001', 'missing-category', '{}', 'draft', '${now}', '${now}')`)).toThrow(/FOREIGN KEY constraint failed/);
 
-    await db
-      .prepare(
-        "INSERT INTO categories (id, locale, name, slug, sort_order, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      )
-      .bind("category-1", "en", "Artificial flowers", "flowers", 0, "published", now, now)
-      .run();
-
-    await expect(
-      db
-        .prepare(
-          "INSERT INTO categories (id, locale, name, slug, sort_order, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind("category-2", "en", "Duplicate", "flowers", 1, "published", now, now)
-        .run(),
-    ).rejects.toThrow();
-
-    await db
-      .prepare(
-        "INSERT INTO products (id, locale, name, slug, product_code, category_id, specifications_json, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      )
-      .bind("product-1", "en", "Magnolia stem", "magnolia-stem", "ES-MAG-001", "category-1", "{}", "published", now, now)
-      .run();
-
-    await expect(
-      db
-        .prepare(
-          "INSERT INTO products (id, locale, name, slug, product_code, category_id, specifications_json, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind("product-2", "en", "Magnolia stem two", "magnolia-stem-two", "ES-MAG-001", "category-1", "{}", "published", now, now)
-        .run(),
-    ).rejects.toThrow();
-
-    await expect(
-      db
-        .prepare(
-          "INSERT INTO products (id, locale, name, slug, product_code, category_id, specifications_json, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind("product-3", "en", "Orphan stem", "orphan-stem", "ES-ORP-001", "missing-category", "{}", "draft", now, now)
-        .run(),
-    ).rejects.toThrow();
+    expect(() => execute(`INSERT INTO product_images (id, product_id, media_id, created_at) VALUES ('product-image-2', 'product-1', 'media-1', '${now}')`)).toThrow(/UNIQUE constraint failed/);
   });
 
-  it("returns a typed D1 client for the runtime binding", () => {
-    expect(createDb(db as unknown as D1Database)).toHaveProperty("query");
+  it("normalizes inquiry interests and restricts JSON columns to bounded content", () => {
+    const schema = query(`SELECT 'inquiries' AS object, group_concat(name) AS detail FROM pragma_table_info('inquiries')
+      UNION ALL SELECT 'settings', group_concat(name) FROM pragma_table_info('settings')
+      UNION ALL SELECT 'audit_logs', group_concat(name) FROM pragma_table_info('audit_logs')
+      UNION ALL SELECT 'inquiry_interests', group_concat(name) FROM pragma_table_info('inquiry_interests')
+      UNION ALL SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name IN ('products', 'pages')`);
+    const detail = (name: string) => String(schema.find((row) => row.object === name)?.detail);
+
+    expect(detail("inquiries")).not.toContain("interests_json");
+    expect(detail("settings")).not.toContain("value_json");
+    expect(detail("audit_logs")).not.toContain("context_json");
+    expect(detail("inquiry_interests")).toContain("inquiry_id,interest");
+    expect(detail("products")).toContain("specifications_json");
+    expect(detail("pages")).toContain("sections_json");
   });
 
-  it("seeds the English demo content idempotently", async () => {
-    await applyMigration(db, "migrations/0001_initial.sql");
+  it("runs the configured local seed twice without duplicate demo records", () => {
+    runNpm(["run", "db:seed:local", "--", "--config", configPath, "--database", "DB"]);
+    runNpm(["run", "db:seed:local", "--", "--config", configPath, "--database", "DB"]);
 
-    await seedDemoContent(db as unknown as D1Database);
-    await seedDemoContent(db as unknown as D1Database);
+    expect(query(`SELECT (SELECT COUNT(*) FROM categories) AS categories, (SELECT COUNT(*) FROM products) AS products,
+      (SELECT COUNT(*) FROM articles) AS articles, (SELECT name FROM products WHERE locale = 'en' AND slug = 'magnolia-stem') AS magnolia`)).toEqual([
+      { categories: 6, products: 5, articles: 3, magnolia: "Magnolia stem" },
+    ]);
+  }, 30_000);
 
-    await expect(rowCount(db, "categories")).resolves.toBe(5);
-    await expect(rowCount(db, "products")).resolves.toBeGreaterThanOrEqual(5);
-    await expect(rowCount(db, "pages")).resolves.toBeGreaterThanOrEqual(5);
-    await expect(rowCount(db, "spaces")).resolves.toBeGreaterThanOrEqual(1);
-    await expect(rowCount(db, "articles")).resolves.toBe(3);
-    await expect(
-      db.prepare("SELECT name FROM products WHERE locale = ? AND slug = ?").bind("en", "magnolia-stem").all<{ name: string }>(),
-    ).resolves.toEqual({ results: [{ name: "Magnolia stem" }] });
-  });
+  function query(sql: string): Array<Record<string, unknown>> {
+    return JSON.parse(runWrangler(["d1", "execute", "DB", "--local", "--config", configPath, "--command", sql, "--json"]))[0].results;
+  }
+
+  function execute(sql: string): void {
+    runWrangler(["d1", "execute", "DB", "--local", "--config", configPath, "--command", sql]);
+  }
+
+  function validInquiry(status: string): string {
+    return `INSERT INTO inquiries (id, inquiry_type, name, email, status, created_at, updated_at)
+      VALUES ('inquiry-${status}', 'catalog', 'Ava Buyer', 'ava-${status}@example.com', '${status}', '2026-09-13T00:00:00.000Z', '2026-09-13T00:00:00.000Z')`;
+  }
 });
 
-async function applyMigration(db: TestD1Database, path: string): Promise<void> {
-  await db.exec(await readFile(path, "utf8"));
+function runWrangler(args: string[]): string {
+  return runNpm(["exec", "wrangler", "--", ...args]);
 }
 
-async function tableNames(db: TestD1Database): Promise<string[]> {
-  const result = await db
-    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
-    .all<{ name: string }>();
-  return result.results.map(({ name }) => name);
-}
-
-async function insertInquiry(db: TestD1Database, status: string): Promise<void> {
-  const now = "2026-09-13T00:00:00.000Z";
-  await db
-    .prepare(
-      "INSERT INTO inquiries (id, inquiry_type, name, email, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    )
-    .bind(`inquiry-${status}`, "catalog", "Ava Buyer", "ava@example.com", status, now, now)
-    .run();
-}
-
-async function rowCount(db: TestD1Database, table: string): Promise<number> {
-  const result = await db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).all<{ count: number }>();
-  return result.results[0]?.count ?? 0;
-}
-
-class TestD1Database {
-  private readonly database = new DatabaseSync(":memory:");
-
-  prepare(query: string): TestD1PreparedStatement {
-    return new TestD1PreparedStatement(this.database.prepare(query));
-  }
-
-  async exec(query: string): Promise<void> {
-    this.database.exec(query);
-  }
-
-  close(): void {
-    this.database.close();
-  }
-}
-
-class TestD1PreparedStatement {
-  private values: unknown[] = [];
-
-  constructor(
-    private readonly statement: {
-      all(...values: unknown[]): unknown[];
-      run(...values: unknown[]): unknown;
-    },
-  ) {}
-
-  bind(...values: unknown[]): this {
-    this.values = values;
-    return this;
-  }
-
-  async run(): Promise<void> {
-    this.statement.run(...this.values);
-  }
-
-  async all<T>(): Promise<{ results: T[] }> {
-    return { results: this.statement.all(...this.values) as T[] };
+function runNpm(args: string[]): string {
+  try {
+    return execFileSync("npm", args, { cwd: workspace, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } catch (error) {
+    const failed = error as { stderr?: string; stdout?: string };
+    throw new Error(`${failed.stdout ?? ""}${failed.stderr ?? ""}`);
   }
 }

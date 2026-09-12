@@ -1,4 +1,5 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
+import { check, index, integer, primaryKey, sqliteTable, text, unique, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const contentStatuses = ["draft", "published", "archived"] as const;
 export const inquiryStatuses = ["new", "contacted", "qualified", "closed", "spam"] as const;
@@ -32,7 +33,11 @@ export const users = sqliteTable(
     lastLoginAt: text("last_login_at"),
     ...timestamps,
   },
-  (table) => [index("users_active_role_idx").on(table.isActive, table.role)],
+  (table) => [
+    index("users_active_role_idx").on(table.isActive, table.role),
+    check("users_role_check", sql`${table.role} in ('admin', 'editor', 'sales')`),
+    check("users_active_check", sql`${table.isActive} in (0, 1)`),
+  ],
 );
 
 export const sessions = sqliteTable(
@@ -65,7 +70,11 @@ export const media = sqliteTable(
     createdByUserId: text("created_by_user_id").references(() => users.id),
     ...timestamps,
   },
-  (table) => [index("media_deleted_created_idx").on(table.isDeleted, table.createdAt)],
+  (table) => [
+    index("media_deleted_created_idx").on(table.isDeleted, table.createdAt),
+    check("media_byte_size_check", sql`${table.byteSize} >= 0`),
+    check("media_deleted_check", sql`${table.isDeleted} in (0, 1)`),
+  ],
 );
 
 export const categories = sqliteTable(
@@ -82,6 +91,7 @@ export const categories = sqliteTable(
   (table) => [
     uniqueIndex("categories_locale_slug_unique").on(table.locale, table.slug),
     index("categories_status_order_idx").on(table.status, table.sortOrder),
+    check("categories_status_check", sql`${table.status} in ('draft', 'published', 'archived')`),
   ],
 );
 
@@ -103,6 +113,7 @@ export const products = sqliteTable(
     uniqueIndex("products_locale_slug_unique").on(table.locale, table.slug),
     index("products_status_category_idx").on(table.status, table.categoryId),
     index("products_status_updated_idx").on(table.status, table.updatedAt),
+    check("products_status_check", sql`${table.status} in ('draft', 'published', 'archived')`),
   ],
 );
 
@@ -117,7 +128,11 @@ export const productImages = sqliteTable(
     isCover: integer("is_cover", { mode: "boolean" }).notNull().default(false),
     createdAt: text("created_at").notNull(),
   },
-  (table) => [index("product_images_product_order_idx").on(table.productId, table.sortOrder)],
+  (table) => [
+    unique("product_images_product_media_unique").on(table.productId, table.mediaId),
+    index("product_images_product_order_idx").on(table.productId, table.sortOrder),
+    check("product_images_cover_check", sql`${table.isCover} in (0, 1)`),
+  ],
 );
 
 export const spaces = sqliteTable(
@@ -137,6 +152,7 @@ export const spaces = sqliteTable(
     uniqueIndex("spaces_locale_slug_unique").on(table.locale, table.slug),
     index("spaces_status_category_idx").on(table.status, table.category),
     index("spaces_status_updated_idx").on(table.status, table.updatedAt),
+    check("spaces_status_check", sql`${table.status} in ('draft', 'published', 'archived')`),
   ],
 );
 
@@ -150,7 +166,10 @@ export const spaceImages = sqliteTable(
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: text("created_at").notNull(),
   },
-  (table) => [index("space_images_space_order_idx").on(table.spaceId, table.sortOrder)],
+  (table) => [
+    unique("space_images_space_media_unique").on(table.spaceId, table.mediaId),
+    index("space_images_space_order_idx").on(table.spaceId, table.sortOrder),
+  ],
 );
 
 export const articles = sqliteTable(
@@ -169,6 +188,7 @@ export const articles = sqliteTable(
   (table) => [
     uniqueIndex("articles_locale_slug_unique").on(table.locale, table.slug),
     index("articles_status_published_idx").on(table.status, table.publishedAt),
+    check("articles_status_check", sql`${table.status} in ('draft', 'published', 'archived')`),
   ],
 );
 
@@ -183,6 +203,7 @@ export const pages = sqliteTable(
   (table) => [
     uniqueIndex("pages_locale_key_unique").on(table.locale, table.pageKey),
     index("pages_status_updated_idx").on(table.status, table.updatedAt),
+    check("pages_status_check", sql`${table.status} in ('draft', 'published', 'archived')`),
   ],
 );
 
@@ -197,7 +218,6 @@ export const inquiries = sqliteTable(
     company: text("company"),
     country: text("country"),
     buyerType: text("buyer_type"),
-    interestsJson: text("interests_json"),
     message: text("message"),
     productId: text("product_id").references(() => products.id),
     sourceRoute: text("source_route"),
@@ -210,6 +230,21 @@ export const inquiries = sqliteTable(
     index("inquiries_status_created_idx").on(table.status, table.createdAt),
     index("inquiries_assignee_status_idx").on(table.assigneeUserId, table.status),
     index("inquiries_product_created_idx").on(table.productId, table.createdAt),
+    check("inquiries_type_check", sql`${table.inquiryType} in ('product', 'contact', 'catalog')`),
+    check("inquiries_status_check", sql`${table.status} in ('new', 'contacted', 'qualified', 'closed', 'spam')`),
+  ],
+);
+
+export const inquiryInterests = sqliteTable(
+  "inquiry_interests",
+  {
+    inquiryId: text("inquiry_id").notNull().references(() => inquiries.id),
+    interest: text("interest").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    primaryKey({ name: "inquiry_interests_primary", columns: [table.inquiryId, table.interest] }),
+    index("inquiry_interests_interest_idx").on(table.interest),
   ],
 );
 
@@ -237,12 +272,23 @@ export const subscribers = sqliteTable(
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
-  (table) => [index("subscribers_status_created_idx").on(table.status, table.createdAt)],
+  (table) => [
+    index("subscribers_status_created_idx").on(table.status, table.createdAt),
+    check("subscribers_status_check", sql`${table.status} in ('subscribed', 'unsubscribed')`),
+  ],
 );
 
 export const settings = sqliteTable("settings", {
-  key: text("key").primaryKey(),
-  valueJson: text("value_json").notNull(),
+  id: text("id").primaryKey(),
+  companyName: text("company_name").notNull(),
+  tagline: text("tagline"),
+  companyDescription: text("company_description"),
+  contactEmail: text("contact_email"),
+  instagramUrl: text("instagram_url"),
+  pinterestUrl: text("pinterest_url"),
+  linkedinUrl: text("linkedin_url"),
+  defaultSeoTitle: text("default_seo_title"),
+  defaultSeoDescription: text("default_seo_description"),
   updatedByUserId: text("updated_by_user_id").references(() => users.id),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
@@ -256,7 +302,7 @@ export const auditLogs = sqliteTable(
     action: text("action").notNull(),
     entityType: text("entity_type").notNull(),
     entityId: text("entity_id").notNull(),
-    contextJson: text("context_json"),
+    contextText: text("context_text"),
     createdAt: text("created_at").notNull(),
   },
   (table) => [index("audit_logs_entity_created_idx").on(table.entityType, table.entityId, table.createdAt)],

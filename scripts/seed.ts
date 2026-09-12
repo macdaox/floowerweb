@@ -18,8 +18,8 @@ const media = [
   ["media-journal-material", "demo/detail-macro.png", "detail-macro.png", "Leaf, stone and textile material study"],
 ] as const;
 
-/** Inserts the demo-derived English records. Stable IDs and conflict updates make re-seeding safe. */
-export async function seedDemoContent(db: D1Database): Promise<void> {
+/** Returns idempotent demo seed statements for either a D1 binding or Wrangler CLI runner. */
+export function demoSeedStatements(): SeedStatement[] {
   const statements: SeedStatement[] = [];
 
   for (const [id, objectKey, filename, altText] of media) {
@@ -88,24 +88,47 @@ export async function seedDemoContent(db: D1Database): Promise<void> {
   }
 
   statements.push({
-    sql: `INSERT INTO settings (key, value_json, created_at, updated_at) VALUES (?, ?, ?, ?)
-          ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at`,
+    sql: `INSERT INTO settings (id, company_name, tagline, company_description, contact_email, instagram_url, pinterest_url, linkedin_url, default_seo_title, default_seo_description, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET company_name = excluded.company_name, tagline = excluded.tagline,
+            company_description = excluded.company_description, contact_email = excluded.contact_email,
+            instagram_url = excluded.instagram_url, pinterest_url = excluded.pinterest_url, linkedin_url = excluded.linkedin_url,
+            default_seo_title = excluded.default_seo_title, default_seo_description = excluded.default_seo_description,
+            updated_at = excluded.updated_at`,
     values: [
       "site",
-      JSON.stringify({
-        companyName: "EVERSTEM",
-        tagline: "Botanical objects for contemporary spaces.",
-        description: "EVERSTEM supplies artificial flowers, plants and trees for wholesale buyers, private label collections and commercial projects worldwide.",
-        socialLinks: ["Instagram", "Pinterest", "LinkedIn"],
-      }),
+      "EVERSTEM",
+      "Botanical objects for contemporary spaces.",
+      "EVERSTEM supplies artificial flowers, plants and trees for wholesale buyers, private label collections and commercial projects worldwide.",
+      null,
+      null,
+      null,
+      null,
+      "EVERSTEM | Artificial Flowers and Botanical Objects",
+      "Artificial flowers, plants and trees for wholesale buyers worldwide.",
       seededAt,
       seededAt,
     ],
   });
 
-  for (const statement of statements) {
+  return statements;
+}
+
+/** Inserts the demo-derived English records through a Cloudflare D1 binding. */
+export async function seedDemoContent(db: D1Database): Promise<void> {
+  for (const statement of demoSeedStatements()) {
     await db.prepare(statement.sql).bind(...statement.values).run();
   }
+}
+
+/** Serializes the same idempotent statements for `wrangler d1 execute --file`. */
+export function renderSeedSql(): string {
+  return demoSeedStatements()
+    .map(({ sql, values }) => {
+      let index = 0;
+      return sql.replace(/\?/g, () => sqlLiteral(values[index++]));
+    })
+    .join(";\n\n");
 }
 
 const categories = [
@@ -145,4 +168,10 @@ const pages = [
 
 function mimeType(filename: string): string {
   return filename.endsWith(".png") ? "image/png" : "image/jpeg";
+}
+
+function sqlLiteral(value: unknown): string {
+  if (value === null) return "NULL";
+  if (typeof value === "number") return String(value);
+  return `'${String(value).replaceAll("'", "''")}'`;
 }
