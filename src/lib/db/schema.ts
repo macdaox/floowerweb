@@ -307,3 +307,17 @@ export const auditLogs = sqliteTable(
   },
   (table) => [index("audit_logs_entity_created_idx").on(table.entityType, table.entityId, table.createdAt)],
 );
+
+export const rateLimits = sqliteTable(
+  "rate_limits",
+  {
+    key: text("key").primaryKey(),
+    windowStartedAt: integer("window_started_at").notNull(),
+    expiresAt: integer("expires_at").notNull(),
+    count: integer("count").notNull(),
+  },
+  (table) => [
+    index("rate_limits_expires_at_idx").on(table.expiresAt),
+    check("rate_limits_count_check", sql`${table.count} >= 0`),
+  ],
+);

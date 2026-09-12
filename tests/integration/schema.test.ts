@@ -8,7 +8,7 @@ const workspace = resolve(import.meta.dirname, "../..");
 const requiredTables = [
   "users", "sessions", "categories", "products", "product_images", "spaces", "space_images",
   "articles", "pages", "media", "inquiries", "inquiry_interests", "inquiry_notes", "subscribers",
-  "settings", "audit_logs",
+  "settings", "audit_logs", "rate_limits",
 ];
 
 describe("initial D1 schema", () => {
@@ -46,7 +46,7 @@ migrations_dir = "${resolve(workspace, "migrations")}"\n`,
 
   it("applies the forward-only normalization migration after the initial schema", () => {
     const migrations = query("SELECT name FROM d1_migrations ORDER BY id").map((row) => row.name);
-    expect(migrations).toEqual(["0001_initial.sql", "0002_schema_normalization.sql"]);
+    expect(migrations).toEqual(["0001_initial.sql", "0002_schema_normalization.sql", "0003_rate_limits.sql"]);
   });
 
   it("enforces localized slugs, product codes, gallery uniqueness, and foreign keys", () => {
