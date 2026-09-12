@@ -114,6 +114,8 @@ migrations_dir = "${migrationsDir}"\n`,
         VALUES ('legacy-inquiry', 'catalog', 'Legacy Buyer', 'legacy@example.com', '["Artificial flowers", "Artificial branches"]', 'new', '2026-09-13T00:00:00.000Z', '2026-09-13T00:00:00.000Z');
         INSERT INTO settings (key, value_json, created_at, updated_at)
         VALUES ('legacy-site', '{"companyName":"Legacy Stem","tagline":"A legacy site"}', '2026-09-13T00:00:00.000Z', '2026-09-13T00:00:00.000Z');
+        INSERT INTO settings (key, value_json, created_at, updated_at)
+        VALUES ('legacy-plain', 'A useful legacy setting', '2026-09-13T00:00:00.000Z', '2026-09-13T00:00:00.000Z');
         INSERT INTO audit_logs (id, action, entity_type, entity_id, context_json, created_at)
         VALUES ('legacy-audit', 'seed', 'settings', 'legacy-site', '{"source":"legacy"}', '2026-09-13T00:00:00.000Z')`);
 
@@ -122,8 +124,16 @@ migrations_dir = "${migrationsDir}"\n`,
       expect(queryUpgrade(`SELECT
         (SELECT group_concat(interest, ',') FROM (SELECT interest FROM inquiry_interests WHERE inquiry_id = 'legacy-inquiry' ORDER BY interest)) AS interests,
         (SELECT company_name FROM settings WHERE id = 'legacy-site') AS company_name,
+        (SELECT company_name FROM settings WHERE id = 'legacy-plain') AS plain_company_name,
+        quote((SELECT tagline FROM settings WHERE id = 'legacy-plain')) AS plain_tagline_sql,
         (SELECT context_text FROM audit_logs WHERE id = 'legacy-audit') AS context_text`)).toEqual([
-        { interests: "Artificial branches,Artificial flowers", company_name: "Legacy Stem", context_text: '{"source":"legacy"}' },
+        {
+          interests: "Artificial branches,Artificial flowers",
+          company_name: "Legacy Stem",
+          plain_company_name: "A useful legacy setting",
+          plain_tagline_sql: "NULL",
+          context_text: '{"source":"legacy"}',
+        },
       ]);
 
       runNpm(["run", "db:seed:local", "--", "--config", upgradeConfig, "--database", "DB"]);

@@ -37,15 +37,19 @@ INSERT INTO settings (
 )
 SELECT
   key,
-  COALESCE(json_extract(value_json, '$.companyName'), key),
-  json_extract(value_json, '$.tagline'),
-  COALESCE(json_extract(value_json, '$.companyDescription'), json_extract(value_json, '$.description')),
-  json_extract(value_json, '$.contactEmail'),
-  json_extract(value_json, '$.instagramUrl'),
-  json_extract(value_json, '$.pinterestUrl'),
-  json_extract(value_json, '$.linkedinUrl'),
-  json_extract(value_json, '$.defaultSeoTitle'),
-  json_extract(value_json, '$.defaultSeoDescription'),
+  CASE
+    WHEN json_valid(value_json) THEN COALESCE(json_extract(value_json, '$.companyName'), key)
+    WHEN trim(value_json) <> '' THEN value_json
+    ELSE key
+  END,
+  CASE WHEN json_valid(value_json) THEN json_extract(value_json, '$.tagline') END,
+  CASE WHEN json_valid(value_json) THEN COALESCE(json_extract(value_json, '$.companyDescription'), json_extract(value_json, '$.description')) END,
+  CASE WHEN json_valid(value_json) THEN json_extract(value_json, '$.contactEmail') END,
+  CASE WHEN json_valid(value_json) THEN json_extract(value_json, '$.instagramUrl') END,
+  CASE WHEN json_valid(value_json) THEN json_extract(value_json, '$.pinterestUrl') END,
+  CASE WHEN json_valid(value_json) THEN json_extract(value_json, '$.linkedinUrl') END,
+  CASE WHEN json_valid(value_json) THEN json_extract(value_json, '$.defaultSeoTitle') END,
+  CASE WHEN json_valid(value_json) THEN json_extract(value_json, '$.defaultSeoDescription') END,
   updated_by_user_id,
   created_at,
   updated_at
