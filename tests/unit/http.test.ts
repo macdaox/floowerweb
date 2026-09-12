@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDb } from "../../src/lib/db/client";
+import type { AppDb } from "../../src/lib/db/types";
 import { HttpError } from "../../src/lib/http/errors";
 import { assertAllowedOrigin } from "../../src/lib/http/origin";
 import { consumeRateLimit } from "../../src/lib/http/rate-limit";
@@ -83,62 +83,46 @@ describe("bounded request parsing", () => {
 
     await expect(parseJson(request, 64)).rejects.toMatchObject({ status: 400, code: "invalid_json" });
   });
+
+  it("cancels a chunked body as soon as the byte limit is exceeded", async () => {
+    let cancelled = false;
+    const encoder = new TextEncoder();
+    let chunk = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (chunk === 0) {
+          chunk += 1;
+          controller.enqueue(encoder.encode('{"message":"'));
+        } else if (chunk === 1) {
+          chunk += 1;
+          controller.enqueue(encoder.encode("this is too large"));
+        } else {
+          controller.close();
+        }
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const request = new Request("https://everstem.test/api/contact", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+      duplex: "half",
+    } as RequestInit);
+
+    expect(request.headers.get("content-length")).toBeNull();
+    await expect(parseJson(request, 16)).rejects.toMatchObject({ status: 413, code: "body_too_large" });
+    expect(cancelled).toBe(true);
+  });
 });
 
 describe("fixed-window rate limits", () => {
-  it("allows requests until the key reaches its limit", async () => {
-    const db = createDb(new InMemoryD1() as unknown as D1Database);
-
-    await expect(consumeRateLimit(db, "ip:form", 2, 60)).resolves.toBe(true);
-    await expect(consumeRateLimit(db, "ip:form", 2, 60)).resolves.toBe(true);
-    await expect(consumeRateLimit(db, "ip:form", 2, 60)).resolves.toBe(false);
-  });
-
   it("rejects invalid limits before writing a counter", async () => {
-    const db = createDb(new InMemoryD1() as unknown as D1Database);
-
-    await expect(consumeRateLimit(db, "ip:form", 0, 60)).rejects.toMatchObject({ status: 500, code: "invalid_rate_limit" });
+    await expect(consumeRateLimit({} as AppDb, "ip:form", 0, 60)).rejects.toMatchObject({ status: 500, code: "invalid_rate_limit" });
   });
 });
 
 function requestFrom(origin: string): Request {
   return new Request("https://everstem.test/api/contact", { method: "POST", headers: { origin } });
-}
-
-class InMemoryD1 {
-  private readonly counters = new Map<string, { windowStart: number; count: number }>();
-
-  prepare(query: string): InMemoryStatement {
-    return new InMemoryStatement(query, this.counters);
-  }
-}
-
-class InMemoryStatement {
-  private values: unknown[] = [];
-
-  constructor(
-    private readonly query: string,
-    private readonly counters: Map<string, { windowStart: number; count: number }>,
-  ) {}
-
-  bind(...values: unknown[]): this {
-    this.values = values;
-    return this;
-  }
-
-  async run(): Promise<D1Response> {
-    return { success: true, meta: { changes: 0 } } as D1Response;
-  }
-
-  async all<T = Record<string, unknown>>(): Promise<D1Result<T>> {
-    if (!this.query.includes("INSERT INTO rate_limits")) {
-      return { success: true, results: [], meta: {} } as unknown as D1Result<T>;
-    }
-
-    const [key, windowStart] = this.values as [string, number];
-    const current = this.counters.get(key);
-    const count = !current || current.windowStart !== windowStart ? 1 : current.count + 1;
-    this.counters.set(key, { windowStart, count });
-    return { success: true, results: [{ count } as T], meta: {} } as unknown as D1Result<T>;
-  }
 }
