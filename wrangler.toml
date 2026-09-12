@@ -10,3 +10,12 @@ database_id = "00000000-0000-0000-0000-000000000000"
 [[r2_buckets]]
 binding = "MEDIA"
 bucket_name = "everstem-media-preview"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "everstem-production"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[[env.production.r2_buckets]]
+binding = "MEDIA"
+bucket_name = "everstem-media-production"
