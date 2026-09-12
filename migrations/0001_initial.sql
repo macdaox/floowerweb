@@ -170,6 +170,7 @@ CREATE TABLE inquiries (
   company TEXT,
   country TEXT,
   buyer_type TEXT,
+  interests_json TEXT,
   message TEXT,
   product_id TEXT REFERENCES products(id),
   source_route TEXT,
@@ -181,14 +182,6 @@ CREATE TABLE inquiries (
 CREATE INDEX inquiries_status_created_idx ON inquiries (status, created_at);
 CREATE INDEX inquiries_assignee_status_idx ON inquiries (assignee_user_id, status);
 CREATE INDEX inquiries_product_created_idx ON inquiries (product_id, created_at);
-
-CREATE TABLE inquiry_interests (
-  inquiry_id TEXT NOT NULL REFERENCES inquiries(id),
-  interest TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  PRIMARY KEY (inquiry_id, interest)
-);
-CREATE INDEX inquiry_interests_interest_idx ON inquiry_interests (interest);
 
 CREATE TABLE inquiry_notes (
   id TEXT PRIMARY KEY,
@@ -212,16 +205,8 @@ CREATE TABLE subscribers (
 CREATE INDEX subscribers_status_created_idx ON subscribers (status, created_at);
 
 CREATE TABLE settings (
-  id TEXT PRIMARY KEY,
-  company_name TEXT NOT NULL,
-  tagline TEXT,
-  company_description TEXT,
-  contact_email TEXT,
-  instagram_url TEXT,
-  pinterest_url TEXT,
-  linkedin_url TEXT,
-  default_seo_title TEXT,
-  default_seo_description TEXT,
+  key TEXT PRIMARY KEY,
+  value_json TEXT NOT NULL,
   updated_by_user_id TEXT REFERENCES users(id),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -233,7 +218,7 @@ CREATE TABLE audit_logs (
   action TEXT NOT NULL,
   entity_type TEXT NOT NULL,
   entity_id TEXT NOT NULL,
-  context_text TEXT,
+  context_json TEXT,
   created_at TEXT NOT NULL
 );
 CREATE INDEX audit_logs_entity_created_idx ON audit_logs (entity_type, entity_id, created_at);

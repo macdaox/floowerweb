@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -44,6 +44,11 @@ migrations_dir = "${resolve(workspace, "migrations")}"\n`,
     expect(() => execute(validInquiry("new"))).not.toThrow();
   });
 
+  it("applies the forward-only normalization migration after the initial schema", () => {
+    const migrations = query("SELECT name FROM d1_migrations ORDER BY id").map((row) => row.name);
+    expect(migrations).toEqual(["0001_initial.sql", "0002_schema_normalization.sql"]);
+  });
+
   it("enforces localized slugs, product codes, gallery uniqueness, and foreign keys", () => {
     const now = "2026-09-13T00:00:00.000Z";
     execute(`INSERT INTO categories (id, locale, name, slug, sort_order, status, created_at, updated_at)
@@ -79,14 +84,57 @@ migrations_dir = "${resolve(workspace, "migrations")}"\n`,
     expect(detail("pages")).toContain("sections_json");
   });
 
-  it("runs the configured local seed twice without duplicate demo records", () => {
-    runNpm(["run", "db:seed:local", "--", "--config", configPath, "--database", "DB"]);
-    runNpm(["run", "db:seed:local", "--", "--config", configPath, "--database", "DB"]);
+  it("upgrades an old-0001 database and seeds the normalized schema idempotently", async () => {
+    const upgradeDirectory = await mkdtemp(join(tmpdir(), "everstem-d1-upgrade-"));
+    const oldMigrationsDirectory = join(upgradeDirectory, "old-migrations");
+    const upgradeConfig = join(upgradeDirectory, "wrangler.toml");
+    const databaseName = `everstem-upgrade-test-${Date.now()}`;
+    const writeConfig = (migrationsDir: string) => writeFile(
+      upgradeConfig,
+      `name = "everstem-upgrade-test"
+compatibility_date = "2026-09-13"
 
-    expect(query(`SELECT (SELECT COUNT(*) FROM categories) AS categories, (SELECT COUNT(*) FROM products) AS products,
-      (SELECT COUNT(*) FROM articles) AS articles, (SELECT name FROM products WHERE locale = 'en' AND slug = 'magnolia-stem') AS magnolia`)).toEqual([
-      { categories: 6, products: 5, articles: 3, magnolia: "Magnolia stem" },
-    ]);
+[[d1_databases]]
+binding = "DB"
+database_name = "${databaseName}"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "${migrationsDir}"\n`,
+    );
+    const runUpgrade = (args: string[]) => runWrangler([...args, "--config", upgradeConfig]);
+    const executeUpgrade = (sql: string) => runUpgrade(["d1", "execute", "DB", "--local", "--command", sql]);
+    const queryUpgrade = (sql: string): Array<Record<string, unknown>> =>
+      JSON.parse(runUpgrade(["d1", "execute", "DB", "--local", "--command", sql, "--json"]))[0].results;
+
+    try {
+      await mkdir(oldMigrationsDirectory);
+      await copyFile(resolve(workspace, "migrations/0001_initial.sql"), join(oldMigrationsDirectory, "0001_initial.sql"));
+      await writeConfig(oldMigrationsDirectory);
+      runUpgrade(["d1", "migrations", "apply", "DB", "--local"]);
+      executeUpgrade(`INSERT INTO inquiries (id, inquiry_type, name, email, interests_json, status, created_at, updated_at)
+        VALUES ('legacy-inquiry', 'catalog', 'Legacy Buyer', 'legacy@example.com', '["Artificial flowers", "Artificial branches"]', 'new', '2026-09-13T00:00:00.000Z', '2026-09-13T00:00:00.000Z');
+        INSERT INTO settings (key, value_json, created_at, updated_at)
+        VALUES ('legacy-site', '{"companyName":"Legacy Stem","tagline":"A legacy site"}', '2026-09-13T00:00:00.000Z', '2026-09-13T00:00:00.000Z');
+        INSERT INTO audit_logs (id, action, entity_type, entity_id, context_json, created_at)
+        VALUES ('legacy-audit', 'seed', 'settings', 'legacy-site', '{"source":"legacy"}', '2026-09-13T00:00:00.000Z')`);
+
+      await writeConfig(resolve(workspace, "migrations"));
+      runUpgrade(["d1", "migrations", "apply", "DB", "--local"]);
+      expect(queryUpgrade(`SELECT
+        (SELECT group_concat(interest, ',') FROM (SELECT interest FROM inquiry_interests WHERE inquiry_id = 'legacy-inquiry' ORDER BY interest)) AS interests,
+        (SELECT company_name FROM settings WHERE id = 'legacy-site') AS company_name,
+        (SELECT context_text FROM audit_logs WHERE id = 'legacy-audit') AS context_text`)).toEqual([
+        { interests: "Artificial branches,Artificial flowers", company_name: "Legacy Stem", context_text: '{"source":"legacy"}' },
+      ]);
+
+      runNpm(["run", "db:seed:local", "--", "--config", upgradeConfig, "--database", "DB"]);
+      runNpm(["run", "db:seed:local", "--", "--config", upgradeConfig, "--database", "DB"]);
+      expect(queryUpgrade(`SELECT (SELECT COUNT(*) FROM categories) AS categories, (SELECT COUNT(*) FROM products) AS products,
+        (SELECT COUNT(*) FROM articles) AS articles, (SELECT name FROM products WHERE locale = 'en' AND slug = 'magnolia-stem') AS magnolia`)).toEqual([
+        { categories: 5, products: 5, articles: 3, magnolia: "Magnolia stem" },
+      ]);
+    } finally {
+      await rm(upgradeDirectory, { force: true, recursive: true });
+    }
   }, 30_000);
 
   function query(sql: string): Array<Record<string, unknown>> {
