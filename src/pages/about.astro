@@ -1,0 +1,10 @@
+---
+import PageSections from "../components/public/PageSections.astro";
+import PublicLayout from "../layouts/PublicLayout.astro";
+import { getPublishedPage, previewPages } from "../features/content/service";
+
+const db = Astro.locals.runtime?.env?.DB;
+const content = db ? await getPublishedPage(db, "about", "en") : previewPages.about;
+---
+
+<PublicLayout title={content?.seo.title ?? "About | EVERSTEM"} description={content?.seo.description ?? "About EVERSTEM."}><PageSections sections={content?.sections ?? []} />{!content && <section class="empty-state section"><p class="eyebrow">About EVERSTEM</p><h1>Our story is being prepared.</h1><p>Please return shortly, or contact us to learn more about the studio.</p><a class="button button-primary" href="/contact">Contact EVERSTEM</a></section>}</PublicLayout>

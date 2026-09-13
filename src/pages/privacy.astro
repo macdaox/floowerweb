@@ -1,0 +1,10 @@
+---
+import PageSections from "../components/public/PageSections.astro";
+import PublicLayout from "../layouts/PublicLayout.astro";
+import { getPublishedPage, previewPages } from "../features/content/service";
+
+const db = Astro.locals.runtime?.env?.DB;
+const content = db ? await getPublishedPage(db, "privacy", "en") : previewPages.privacy;
+---
+
+<PublicLayout title={content?.seo.title ?? "Privacy | EVERSTEM"} description={content?.seo.description ?? "EVERSTEM privacy policy."}><PageSections sections={content?.sections ?? []} />{!content && <section class="empty-state section"><p class="eyebrow">Privacy</p><h1>Our privacy notice is being prepared.</h1><p>Please contact us with any questions about your information.</p></section>}</PublicLayout>

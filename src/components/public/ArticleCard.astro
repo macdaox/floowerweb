@@ -1,0 +1,18 @@
+---
+import type { ArticleCard as ArticleCardData } from "../../features/content/schemas";
+
+interface Props { article: ArticleCardData; }
+const { article } = Astro.props;
+const published = article.publishedAt ? new Date(article.publishedAt) : undefined;
+const date = published && !Number.isNaN(published.getTime()) ? new Intl.DateTimeFormat("en", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" }).format(published) : undefined;
+---
+
+<article class="article-card">
+  <a href={`/journal/${article.slug}`} aria-label={`Read ${article.title}`}>
+    {article.image && <img src={article.image.src} alt={article.image.alt} width="1000" height="1250" loading="lazy" />}
+    <p class="eyebrow">{date ?? "Journal"}</p>
+    <h2>{article.title}</h2>
+    {article.summary && <p>{article.summary}</p>}
+    <span class="text-link">Read article <span aria-hidden="true">→</span></span>
+  </a>
+</article>

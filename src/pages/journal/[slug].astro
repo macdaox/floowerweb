@@ -1,0 +1,15 @@
+---
+import ArticleCard from "../../components/public/ArticleCard.astro";
+import PublicLayout from "../../layouts/PublicLayout.astro";
+import { getPublishedArticle, previewArticle } from "../../features/content/service";
+
+const db = Astro.locals.runtime?.env?.DB;
+const article = db ? await getPublishedArticle(db, "en", Astro.params.slug ?? "") : previewArticle(Astro.params.slug ?? "");
+if (!article) Astro.response.status = 404;
+const published = article?.publishedAt ? new Date(article.publishedAt) : undefined;
+const date = published && !Number.isNaN(published.getTime()) ? new Intl.DateTimeFormat("en", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" }).format(published) : undefined;
+---
+
+<PublicLayout title={article ? article.seo.title : "Article not found | EVERSTEM"} description={article ? article.seo.description : "The requested EVERSTEM article is unavailable."} socialImage={article?.image?.src}>
+  {article ? <article><section class="article-hero section"><p class="eyebrow">{date ?? "Journal"}{article.author && ` · ${article.author}`}</p><h1>{article.title}</h1><p>{article.summary}</p>{article.image && <img src={article.image.src} alt={article.image.alt} width="1600" height="1000" loading="eager" />}</section><section class="article-body section">{article.body.split("\n\n").map((paragraph) => <p>{paragraph}</p>)}</section>{article.relatedArticles.length > 0 && <section class="catalog-section section"><header class="catalog-section-heading"><p class="eyebrow">Continue reading</p><h2>Related notes.</h2></header><div class="article-grid">{article.relatedArticles.map((item) => <ArticleCard article={item} />)}</div></section>}</article> : <section class="empty-state section"><p class="eyebrow">Not found</p><h1>This article has moved on.</h1><p>The journal entry you requested is unavailable. Browse the latest notes from our studio.</p><a class="button button-primary" href="/journal">View journal</a></section>}
+</PublicLayout>

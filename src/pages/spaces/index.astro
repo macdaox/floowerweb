@@ -1,0 +1,13 @@
+---
+import SpaceCard from "../../components/public/SpaceCard.astro";
+import PublicLayout from "../../layouts/PublicLayout.astro";
+import { listPublishedSpaces, previewSpaces } from "../../features/content/service";
+
+const db = Astro.locals.runtime?.env?.DB;
+const spaces = db ? await listPublishedSpaces(db, "en") : previewSpaces;
+---
+
+<PublicLayout title="Spaces | EVERSTEM" description="EVERSTEM botanical objects in hospitality, retail and residential spaces.">
+  <section class="catalog-hero section"><p class="eyebrow">Case studies</p><h1>Botanicals,<br />in context.</h1><p>Permanent botanical elements composed for hospitality, retail, workplace and residential interiors.</p></section>
+  <section class="catalog-section section" aria-labelledby="spaces-heading"><header class="catalog-section-heading"><p class="eyebrow">Selected work</p><h2 id="spaces-heading">Spaces with a lasting presence.</h2></header>{spaces.length ? <div class="space-grid">{spaces.map((space) => <SpaceCard space={space} />)}</div> : <p class="catalog-empty">Our latest case studies are being prepared. Please return shortly.</p>}</section>
+</PublicLayout>

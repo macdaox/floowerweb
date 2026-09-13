@@ -1,0 +1,16 @@
+---
+import type { SpaceCard as SpaceCardData } from "../../features/content/schemas";
+
+interface Props { space: SpaceCardData; }
+const { space } = Astro.props;
+---
+
+<article class="space-card">
+  <a href={`/spaces/${space.slug}`} aria-label={`View ${space.title}`}>
+    {space.image && <img src={space.image.src} alt={space.image.alt} width="1200" height="900" loading="lazy" />}
+    <p class="eyebrow">{space.category}{space.location && ` · ${space.location}`}</p>
+    <h2>{space.title}</h2>
+    {space.summary && <p>{space.summary}</p>}
+    <span class="text-link">View case study <span aria-hidden="true">→</span></span>
+  </a>
+</article>

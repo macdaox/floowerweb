@@ -1,0 +1,13 @@
+---
+import ArticleCard from "../../components/public/ArticleCard.astro";
+import PublicLayout from "../../layouts/PublicLayout.astro";
+import { listPublishedArticles, previewArticles } from "../../features/content/service";
+
+const db = Astro.locals.runtime?.env?.DB;
+const articles = db ? await listPublishedArticles(db, "en") : previewArticles;
+---
+
+<PublicLayout title="Journal | EVERSTEM" description="Notes on nature, material and form from EVERSTEM.">
+  <section class="catalog-hero section"><p class="eyebrow">Journal</p><h1>Notes on nature,<br />material & form.</h1><p>Observations from the studio on artificial botanicals, interior space and lasting display.</p></section>
+  <section class="catalog-section section" aria-labelledby="journal-heading"><header class="catalog-section-heading"><p class="eyebrow">From the studio</p><h2 id="journal-heading">Stories behind the objects.</h2></header>{articles.length ? <div class="article-grid">{articles.map((article) => <ArticleCard article={article} />)}</div> : <p class="catalog-empty">New notes from the studio are being prepared.</p>}</section>
+</PublicLayout>

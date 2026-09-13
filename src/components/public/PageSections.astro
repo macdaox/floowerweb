@@ -1,0 +1,34 @@
+---
+import type { PageBlock } from "../../features/content/schemas";
+
+interface Props { sections: PageBlock[]; }
+const { sections } = Astro.props;
+---
+
+{sections.map((section) => {
+  switch (section.type) {
+    case "hero": return <section class="content-hero section">
+      <div><p class="eyebrow">{section.eyebrow}</p><h1>{section.title}</h1></div>
+      {section.body && <p>{section.body}</p>}
+      {section.image && <figure><img src={section.image.src} alt={section.image.alt} width="1600" height="1000" loading="eager" /></figure>}
+    </section>;
+    case "richText": return <section class="content-rich-text section">
+      {section.heading && <h2>{section.heading}</h2>}
+      <div>{section.document.content.map((paragraph) => <p>{paragraph.content?.map((node) => node.text).join("")}</p>)}</div>
+    </section>;
+    case "imageText": return <section class:list={["content-image-text", "section", section.reversed && "content-image-text-reversed"]}>
+      <figure><img src={section.image.src} alt={section.image.alt} width="1400" height="1200" loading="lazy" /></figure>
+      <div><p class="eyebrow">{section.eyebrow}</p><h2>{section.title}</h2><p>{section.body}</p></div>
+    </section>;
+    case "capabilities": return <section class="content-capabilities section">
+      <header><p class="eyebrow">{section.eyebrow}</p><h2>{section.title}</h2></header>
+      <ul>{section.items.map((item) => <li>{item}</li>)}</ul>
+    </section>;
+    case "cta": return <section class="content-cta section">
+      <p class="eyebrow">{section.eyebrow}</p><h2>{section.title}</h2>{section.body && <p>{section.body}</p>}<a class="button button-primary" href={section.href}>{section.label}</a>
+    </section>;
+    case "contactDetails": return <section class="content-contact-details section">
+      <h2>{section.title}</h2><dl>{section.email && <div><dt>Email</dt><dd><a href={`mailto:${section.email}`}>{section.email}</a></dd></div>}{section.phone && <div><dt>Phone</dt><dd><a href={`tel:${section.phone.replaceAll(" ", "")}`}>{section.phone}</a></dd></div>}{section.address && <div><dt>Studio</dt><dd>{section.address}</dd></div>}{section.hours && <div><dt>Hours</dt><dd>{section.hours}</dd></div>}</dl>
+    </section>;
+  }
+})}
