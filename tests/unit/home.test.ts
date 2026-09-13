@@ -3,7 +3,6 @@ import { loadHomeContent } from "../../src/features/public/home";
 
 type Rows = {
   page: Record<string, unknown> | null;
-  heroMedia: Record<string, unknown> | null;
   categories: Record<string, unknown>[];
   products: Record<string, unknown>[];
   space: Record<string, unknown> | null;
@@ -18,7 +17,7 @@ function d1(rows: Rows): D1Database {
         if (sql.includes("FROM pages")) return rows.page;
         if (sql.includes("FROM spaces")) return rows.space;
         if (sql.includes("FROM settings")) return rows.settings;
-        return rows.heroMedia;
+        return null;
       };
       return {
         first,
@@ -31,10 +30,9 @@ function d1(rows: Rows): D1Database {
 
 const partialRows: Rows = {
   page: {
-    sections_json: JSON.stringify([{ type: "hero", eyebrow: "Edited wholesale botanicals", title: "A changed hero.", image: "media-custom-hero" }]),
+    sections_json: JSON.stringify([{ type: "hero", eyebrow: "Edited wholesale botanicals", title: "A changed hero.", image: { src: "/assets/custom-hero.png", alt: "An editor-selected hero image" } }]),
     seo_title: "Edited home", seo_description: "Edited home description",
   },
-  heroMedia: { original_filename: "custom-hero.png", alt_text: "An editor-selected hero image" },
   categories: [
     { name: "Published one", slug: "published-one", description: "One", original_filename: "one.png", alt_text: "One" },
     { name: "Published two", slug: "published-two", description: "Two", original_filename: "two.png", alt_text: "Two" },
@@ -48,7 +46,7 @@ const partialRows: Rows = {
 };
 
 describe("loadHomeContent", () => {
-  it("keeps successful partial D1 content authoritative and uses the page hero media", async () => {
+  it("keeps successful partial D1 content authoritative and uses the validated page hero image", async () => {
     const content = await loadHomeContent(d1(partialRows));
 
     expect(content.hero).toMatchObject({ eyebrow: "Edited wholesale botanicals", title: "A changed hero.", image: { src: "/assets/custom-hero.png", alt: "An editor-selected hero image" } });
@@ -63,7 +61,6 @@ describe("loadHomeContent", () => {
     const content = await loadHomeContent(d1({
       ...partialRows,
       page: { ...partialRows.page!, sections_json: JSON.stringify([{ type: "hero", eyebrow: "Edited", title: "No image", image: 42 }]) },
-      heroMedia: null,
     }));
 
     expect(content.hero?.image).toBeUndefined();

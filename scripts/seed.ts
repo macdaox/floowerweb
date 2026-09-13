@@ -1,3 +1,6 @@
+import { type PageBlock } from "../src/features/content/schemas";
+import { pageUpsertStatement } from "../src/features/content/write";
+
 type SeedStatement = {
   sql: string;
   values: unknown[];
@@ -78,13 +81,10 @@ export function demoSeedStatements(): SeedStatement[] {
   }
 
   for (const page of pages) {
-    statements.push({
-      sql: `INSERT INTO pages (id, page_key, locale, sections_json, seo_title, seo_description, status, created_at, updated_at)
-            VALUES (?, ?, 'en', ?, ?, ?, 'published', ?, ?)
-            ON CONFLICT(locale, page_key) DO UPDATE SET sections_json = excluded.sections_json, seo_title = excluded.seo_title,
-              seo_description = excluded.seo_description, status = 'published', updated_at = excluded.updated_at`,
-      values: [...page, seededAt, seededAt],
-    });
+    statements.push(pageUpsertStatement({
+      id: page.id, key: page.key, locale: "en", status: "published", sections: page.sections,
+      seoTitle: page.seoTitle, seoDescription: page.seoDescription, createdAt: seededAt, updatedAt: seededAt,
+    }));
   }
 
   statements.push({
@@ -158,13 +158,17 @@ const articles = [
 ] as const;
 
 const pages = [
-  ["page-home", "home", JSON.stringify([{ type: "hero", eyebrow: "Artificial Flowers & Plants for Wholesale", title: "Nature, reimagined.", image: "media-hero" }]), "EVERSTEM | Artificial Flowers and Botanical Objects", "Artificial flowers, plants and trees for wholesale buyers worldwide."],
-  ["page-about", "about", JSON.stringify([{ type: "story", title: "Crafted in China. Designed for the world.", body: "From concept and sampling to production and packaging, EVERSTEM supports global buyers." }]), "About EVERSTEM", "Our approach to wholesale artificial botanicals."],
-  ["page-contact", "contact", JSON.stringify([{ type: "contact", title: "Partner with EVERSTEM.", body: "Tell us what you are sourcing." }]), "Contact EVERSTEM", "Contact EVERSTEM for wholesale artificial botanicals."],
-  ["page-wholesale", "wholesale", JSON.stringify([{ type: "services", title: "For trade", items: ["Wholesale collections", "Private label", "Sampling & development", "Export & project supply"] }]), "Wholesale artificial botanicals | EVERSTEM", "Wholesale collections, private label and project supply."],
-  ["page-privacy", "privacy", JSON.stringify([{ type: "legal", title: "Privacy" }]), "Privacy | EVERSTEM", "EVERSTEM privacy information."],
-  ["page-terms", "terms", JSON.stringify([{ type: "legal", title: "Terms" }]), "Terms | EVERSTEM", "EVERSTEM terms."],
-] as const;
+  { id: "page-home", key: "home", sections: [{ type: "hero", eyebrow: "Artificial Flowers & Plants for Wholesale", title: "Nature, reimagined.", image: { src: "/assets/everstem-hero-magnolia-v3.png", alt: "Sculptural artificial magnolia arrangement in a refined commercial lobby" } }], seoTitle: "EVERSTEM | Artificial Flowers and Botanical Objects", seoDescription: "Artificial flowers, plants and trees for wholesale buyers worldwide." },
+  { id: "page-about", key: "about", sections: [{ type: "hero", eyebrow: "Our studio", title: "Crafted in China. Designed for the world.", body: "From concept and sampling to production and packaging, EVERSTEM supports global buyers." }, { type: "capabilities", eyebrow: "Our approach", title: "A considered production partner.", items: ["Material development", "Color matching", "Hand assembly", "Private label", "Export packaging", "Quality control"] }, { type: "cta", eyebrow: "For trade", title: "Partner with EVERSTEM.", label: "Contact EVERSTEM", href: "/contact" }], seoTitle: "About EVERSTEM", seoDescription: "Our approach to wholesale artificial botanicals." },
+  { id: "page-contact", key: "contact", sections: [{ type: "hero", eyebrow: "Contact", title: "Partner with EVERSTEM.", body: "Tell us what you are sourcing." }, { type: "contactDetails", title: "Talk with our team", email: "hello@everstem.com", address: "Guangzhou, China", hours: "Monday–Friday, 09:00–18:00 CST" }], seoTitle: "Contact EVERSTEM", seoDescription: "Contact EVERSTEM for wholesale artificial botanicals." },
+  { id: "page-wholesale", key: "wholesale", sections: [{ type: "hero", eyebrow: "Trade & wholesale", title: "For trade", body: "Wholesale collections, private label and project supply." }, { type: "capabilities", title: "Built for trade.", items: ["Wholesale collections", "Private label", "Sampling & development", "Export & project supply"] }], seoTitle: "Wholesale artificial botanicals | EVERSTEM", seoDescription: "Wholesale collections, private label and project supply." },
+  { id: "page-privacy", key: "privacy", sections: [{ type: "hero", eyebrow: "Privacy", title: "Privacy, clearly stated." }, { type: "richText", heading: "How we use information", document: document(["When you contact EVERSTEM, we use the information you provide to respond to your enquiry and manage our business relationship.", "We do not sell personal information. You may ask us to update or remove your contact information by emailing hello@everstem.com."]) }], seoTitle: "Privacy | EVERSTEM", seoDescription: "EVERSTEM privacy information." },
+  { id: "page-terms", key: "terms", sections: [{ type: "hero", eyebrow: "Terms", title: "Terms for using this site." }, { type: "richText", heading: "Website terms", document: document(["Images, words and other content on this site belong to EVERSTEM or are used with permission. Please ask before reproducing them.", "Product availability, specifications and lead times are confirmed individually with our sales team."]) }], seoTitle: "Terms | EVERSTEM", seoDescription: "EVERSTEM terms." },
+] satisfies ReadonlyArray<{ id: string; key: string; sections: PageBlock[]; seoTitle: string; seoDescription: string }>;
+
+function document(paragraphs: string[]) {
+  return { type: "doc" as const, content: paragraphs.map((text) => ({ type: "paragraph" as const, content: [{ type: "text" as const, text }] })) };
+}
 
 function mimeType(filename: string): string {
   return filename.endsWith(".png") ? "image/png" : "image/jpeg";

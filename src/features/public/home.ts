@@ -1,3 +1,5 @@
+import { parseStoredPageBlocks } from "../content/schemas";
+
 export interface HomeMedia { src: string; alt: string; }
 export interface HomeCategory { name: string; slug: string; description: string; image?: HomeMedia; }
 export interface HomeProduct { name: string; slug: string; summary: string; categorySlug: string; }
@@ -12,7 +14,7 @@ export interface HomeContent {
 
 type Row = Record<string, unknown>;
 type Read<T> = { failed: false; value: T } | { failed: true };
-type ParsedHero = { eyebrow: string; title: string; imageId?: string };
+type ParsedHero = { eyebrow: string; title: string; image?: HomeMedia };
 const asset = (filename: string) => `/assets/${filename}`;
 const media = (filename: string, alt: string): HomeMedia => ({ src: asset(filename), alt });
 
@@ -30,8 +32,7 @@ export async function loadHomeContent(binding?: D1Database): Promise<HomeContent
   const parsedHero: ParsedHero | undefined = pageRead.failed && fallbackHomeContent.hero
     ? { eyebrow: fallbackHomeContent.hero.eyebrow, title: fallbackHomeContent.hero.title }
     : parseHero(page?.sections_json);
-  const heroMediaRead = parsedHero?.imageId ? await safely(() => binding.prepare("SELECT original_filename, alt_text FROM media WHERE id = ? LIMIT 1").bind(parsedHero.imageId).first<Row>()) : undefined;
-  const heroImage = pageRead.failed ? fallbackHomeContent.hero?.image : heroMediaRead?.failed ? fallbackHomeContent.hero?.image : heroMediaRead ? rowMedia(heroMediaRead.value) : undefined;
+  const heroImage = pageRead.failed ? fallbackHomeContent.hero?.image : parsedHero?.image;
   return {
     seo: pageRead.failed ? fallbackHomeContent.seo : { title: text(page?.seo_title) || text(settingsRead.failed ? undefined : settingsRead.value?.default_seo_title) || "EVERSTEM", description: text(page?.seo_description) || text(settingsRead.failed ? undefined : settingsRead.value?.default_seo_description) || "" },
     hero: parsedHero && { eyebrow: parsedHero.eyebrow, title: parsedHero.title, image: heroImage },
@@ -45,14 +46,9 @@ export async function loadHomeContent(binding?: D1Database): Promise<HomeContent
 
 async function safely<T>(read: () => Promise<T>): Promise<Read<T>> { try { return { failed: false, value: await read() }; } catch { return { failed: true }; } }
 function parseHero(value: unknown): ParsedHero | undefined {
-  if (typeof value !== "string") return undefined;
-  try {
-    const sections = JSON.parse(value);
-    if (!Array.isArray(sections)) return undefined;
-    const section = sections.find((item): item is { type?: unknown; eyebrow?: unknown; title?: unknown; image?: unknown } => typeof item === "object" && item !== null && (item as { type?: unknown }).type === "hero");
-    if (typeof section?.eyebrow !== "string" || !section.eyebrow.trim() || typeof section.title !== "string" || !section.title.trim()) return undefined;
-    return { eyebrow: section.eyebrow, title: section.title, imageId: typeof section.image === "string" && section.image.trim() ? section.image : undefined };
-  } catch { return undefined; }
+  const section = parseStoredPageBlocks(value)?.find((item) => item.type === "hero");
+  if (!section || !section.eyebrow) return undefined;
+  return { eyebrow: section.eyebrow, title: section.title, image: section.image };
 }
 function categoryFrom(row: Row): HomeCategory { return { name: text(row.name), slug: text(row.slug), description: text(row.description), image: rowMedia(row) }; }
 function productFrom(row: Row): HomeProduct { return { name: text(row.name), slug: text(row.slug), summary: text(row.summary), categorySlug: text(row.category_slug) }; }
