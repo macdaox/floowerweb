@@ -45,6 +45,13 @@ migrations_dir = "${resolve(workspace, "migrations")}"\n`);
     })).toThrow(/administrator already exists/i);
   }, 30_000);
 
+  it("refuses a passphrase with fewer than fifteen non-whitespace characters", () => {
+    expect(() => runNpm(["run", "admin:create", "--", "--email", "admin@example.com", "--config", configPath, "--database", "DB"], {
+      EVERSTEM_ADMIN_PASSWORD: "a             b",
+    })).toThrow(/at least 15 non-whitespace/i);
+    expect(query("SELECT COUNT(*) AS count FROM users")).toEqual([{ count: 0 }]);
+  }, 30_000);
+
   function query(sql: string): Array<Record<string, unknown>> {
     return JSON.parse(runNpm(["exec", "wrangler", "--", "d1", "execute", "DB", "--local", "--config", configPath, "--command", sql, "--json"]))[0].results;
   }

@@ -16,7 +16,7 @@ export function parseLoginInput(input: unknown): LoginInput {
 }
 
 export function assertStrongAdminPassword(password: string): void {
-  if (password.length < 15 || password.length > MAX_PASSWORD_LENGTH || password.trim().length < 15) {
+  if (password.length > MAX_PASSWORD_LENGTH || password.replace(/\s/gu, "").length < 15) {
     throw new Error("EVERSTEM_ADMIN_PASSWORD must be a passphrase of at least 15 non-whitespace characters.");
   }
 }

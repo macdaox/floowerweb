@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { requireRole } from "../../src/features/auth/authorize";
 import { hashPassword, verifyPassword } from "../../src/features/auth/password";
+import { assertStrongAdminPassword } from "../../src/features/auth/schemas";
 
 describe("password hashing", () => {
   it("verifies the original password without retaining plaintext", async () => {
@@ -17,6 +18,20 @@ describe("password hashing", () => {
 
   it("rejects malformed stored hashes without throwing", async () => {
     await expect(verifyPassword("correct horse battery staple", "not-a-password-hash")).resolves.toBe(false);
+  });
+
+  it("rejects hashes that advertise a different PBKDF2 work factor", async () => {
+    const encoded = await hashPassword("correct horse battery staple");
+
+    await expect(verifyPassword("correct horse battery staple", encoded.replace("$600000$", "$1$"))).resolves.toBe(false);
+    await expect(verifyPassword("correct horse battery staple", encoded.replace("$600000$", "$900000000$"))).resolves.toBe(false);
+  });
+});
+
+describe("administrator password policy", () => {
+  it("requires at least fifteen non-whitespace password characters", () => {
+    expect(() => assertStrongAdminPassword("a             b")).toThrow(/at least 15 non-whitespace/i);
+    expect(() => assertStrongAdminPassword("correct horse battery staple")).not.toThrow();
   });
 });
 

@@ -52,8 +52,7 @@ describe("authentication API", () => {
     const token = cookie?.match(/^everstem_session=([^;]+)/)?.[1];
     expect(token).toHaveLength(43);
     const session = await database.prepare("SELECT token_digest FROM sessions WHERE user_id = ?").bind("admin-1").first<{ token_digest: string }>();
-    expect(session?.token_digest).toBeTruthy();
-    expect(session?.token_digest).not.toBe(token);
+    expect(session?.token_digest).toBe(Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))).toString("base64url"));
     expect(await response.json()).toEqual({
       ok: true,
       data: { user: { id: "admin-1", email: "admin@example.com", displayName: "Administrator", role: "admin" } },

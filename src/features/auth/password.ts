@@ -25,7 +25,7 @@ function parsePasswordHash(encoded: string): { iterations: number; salt: Uint8Ar
   if (prefix !== PASSWORD_HASH_PREFIX || extra.length > 0) return undefined;
 
   const iterations = Number(iterationText);
-  if (!Number.isSafeInteger(iterations) || iterations < 1) return undefined;
+  if (iterations !== PBKDF2_ITERATIONS) return undefined;
 
   try {
     const salt = fromBase64Url(saltText ?? "");
