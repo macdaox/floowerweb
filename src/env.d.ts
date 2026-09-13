@@ -1,5 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import type { AuthUser } from "./features/auth/authorize";
+
 export interface RuntimeEnv {
   DB: D1Database;
   MEDIA: R2Bucket;
@@ -12,6 +14,7 @@ declare global {
       runtime: {
         env: RuntimeEnv;
       };
+      auth?: AuthUser;
     }
   }
 }
