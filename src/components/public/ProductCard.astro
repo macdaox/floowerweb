@@ -1,0 +1,16 @@
+---
+import type { ProductCard as ProductCardData } from "../../features/catalog/schemas";
+
+interface Props { product: ProductCardData; }
+const { product } = Astro.props;
+---
+
+<article class="product-card">
+  <a href={`/products/${product.slug}`} aria-label={`View ${product.name}`}>
+    {product.image && <img src={product.image.src} alt={product.image.alt} width="1000" height="1250" loading="lazy" />}
+    <p class="eyebrow">{product.category.name}</p>
+    <h2>{product.name}</h2>
+    {product.summary && <p>{product.summary}</p>}
+    <span class="text-link">View product <span aria-hidden="true">→</span></span>
+  </a>
+</article>

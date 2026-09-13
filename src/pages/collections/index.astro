@@ -1,0 +1,29 @@
+---
+import ProductCard from "../../components/public/ProductCard.astro";
+import PublicLayout from "../../layouts/PublicLayout.astro";
+import { listPublishedCategories, listPublishedProducts, previewCatalog } from "../../features/catalog/service";
+
+const db = Astro.locals.runtime?.env?.DB;
+const requestedPage = Number.parseInt(Astro.url.searchParams.get("page") ?? "1", 10);
+const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+const [categories, products] = db
+  ? await Promise.all([listPublishedCategories(db, "en"), listPublishedProducts(db, { locale: "en", page })])
+  : [previewCatalog.categories, { items: previewCatalog.products, page: 1, pageSize: 24 as const, total: previewCatalog.products.length, totalPages: 1 }];
+---
+
+<PublicLayout title="Collections | EVERSTEM" description="Artificial botanical collections for wholesale buyers.">
+  <section class="catalog-hero section">
+    <p class="eyebrow">Wholesale collections</p>
+    <h1>Botanical<br />collections.</h1>
+    <p>Artificial flowers, branches, plants and trees created for retail, projects and long-term display.</p>
+  </section>
+  <section class="catalog-section section" aria-labelledby="collection-categories">
+    <h2 id="collection-categories" class="visually-hidden">Collection categories</h2>
+    <nav class="catalog-filter" aria-label="Collection categories"><a aria-current="page" href="/collections">All collections</a>{categories.map((category) => <a href={`/collections/${category.slug}`}>{category.name}</a>)}</nav>
+  </section>
+  <section class="catalog-section section" aria-labelledby="collection-products">
+    <header class="catalog-section-heading"><p class="eyebrow">Selected objects</p><h2 id="collection-products">The collection</h2></header>
+    {products.items.length ? <div class="product-grid">{products.items.map((product) => <ProductCard product={product} />)}</div> : <p class="catalog-empty">No published products are available in this collection yet.</p>}
+    {products.totalPages > 1 && <nav class="pagination" aria-label="Product pages">{products.page > 1 && <a href={`/collections?page=${products.page - 1}`}>Previous</a>}<span>Page {products.page} of {products.totalPages}</span>{products.page < products.totalPages && <a href={`/collections?page=${products.page + 1}`}>Next</a>}</nav>}
+  </section>
+</PublicLayout>

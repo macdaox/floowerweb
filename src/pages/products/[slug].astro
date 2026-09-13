@@ -1,0 +1,43 @@
+---
+import ProductCard from "../../components/public/ProductCard.astro";
+import { selectGalleryImage } from "../../components/public/ProductGallery";
+import { productInquiryFields } from "../../components/public/ProductInquiryForm";
+import PublicLayout from "../../layouts/PublicLayout.astro";
+import { getPublishedProductBySlug, previewProduct } from "../../features/catalog/service";
+
+const slug = Astro.params.slug ?? "";
+const db = Astro.locals.runtime?.env?.DB;
+const product = db ? await getPublishedProductBySlug(db, "en", slug) : previewProduct(slug);
+if (!product) return new Response("Not found", { status: 404 });
+const selectedImage = selectGalleryImage(product.images, 0);
+const galleryImages = selectedImage ? [selectedImage, ...product.images.filter((image) => image.src !== selectedImage.src)] : [];
+const inquiry = productInquiryFields(product.id, product.name, Astro.url.pathname);
+---
+
+<PublicLayout title={product.seo.title} description={product.seo.description} socialImage={product.images[0]?.src}>
+  <article>
+    <section class="product-detail section">
+      <div class="product-gallery" aria-label={`${product.name} gallery`}>
+        {galleryImages.length ? <>{galleryImages.map((image, index) => <figure id={`image-${index}`}><img src={image.src} alt={image.alt} width="1400" height="1750" loading={index === 0 ? "eager" : "lazy"} /><figcaption class="visually-hidden">Image {index + 1} of {galleryImages.length}</figcaption></figure>)}</> : <div class="gallery-empty">Product imagery will be available shortly.</div>}
+      </div>
+      <div class="product-copy">
+        <p class="eyebrow"><a href={`/collections/${product.category.slug}`}>{product.category.name}</a></p>
+        <h1>{product.name}</h1>
+        <p class="product-summary">{product.summary}</p>
+        {product.body && <p>{product.body}</p>}
+        <dl class="product-specifications"><dt><h2>Specifications</h2></dt>{product.specifications.map((specification) => <div><dt>{specification.label}</dt><dd>{specification.value}</dd></div>)}</dl>
+        <form class="product-inquiry-form" aria-label={`Inquire about ${product.name}`}>
+          <input type="hidden" name="product_id" value={inquiry.productId} />
+          <input type="hidden" name="product_name" value={inquiry.productName} />
+          <input type="hidden" name="source_route" value={inquiry.sourceRoute} />
+          <h2>Request product information</h2>
+          <label for="inquiry-name">Name<input id="inquiry-name" name="name" autocomplete="name" required /></label>
+          <label for="inquiry-email">Business email<input id="inquiry-email" name="email" type="email" autocomplete="email" required /></label>
+          <label for="inquiry-message">What are you sourcing?<textarea id="inquiry-message" name="message" rows="3"></textarea></label>
+          <button class="button button-primary" type="button">Send inquiry</button>
+        </form>
+      </div>
+    </section>
+    {product.relatedProducts.length > 0 && <section class="catalog-section section" aria-labelledby="related-products"><header class="catalog-section-heading"><p class="eyebrow">More from {product.category.name}</p><h2 id="related-products">Related products</h2></header><div class="product-grid">{product.relatedProducts.map((item) => <ProductCard product={item} />)}</div></section>}
+  </article>
+</PublicLayout>

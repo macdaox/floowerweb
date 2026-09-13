@@ -1,0 +1,31 @@
+---
+import ProductCard from "../../components/public/ProductCard.astro";
+import PublicLayout from "../../layouts/PublicLayout.astro";
+import { getPublishedCategoryBySlug, listPublishedCategories, listPublishedProducts, previewCatalog } from "../../features/catalog/service";
+
+const slug = Astro.params.category ?? "";
+const db = Astro.locals.runtime?.env?.DB;
+const requestedPage = Number.parseInt(Astro.url.searchParams.get("page") ?? "1", 10);
+const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+const previewCategory = previewCatalog.categories.find((candidate) => candidate.slug === slug) ?? null;
+const [category, categories, products] = db
+  ? await Promise.all([getPublishedCategoryBySlug(db, "en", slug), listPublishedCategories(db, "en"), listPublishedProducts(db, { locale: "en", categorySlug: slug, page })])
+  : [previewCategory, previewCatalog.categories, { items: previewCatalog.products.filter((product) => product.category.slug === slug), page: 1, pageSize: 24 as const, total: previewCatalog.products.filter((product) => product.category.slug === slug).length, totalPages: 1 }];
+if (!category) return new Response("Not found", { status: 404 });
+---
+
+<PublicLayout title={`${category.name} | EVERSTEM`} description={category.description} socialImage={category.image?.src}>
+  <section class="catalog-hero section">
+    <p class="eyebrow">Collection</p>
+    <h1>{category.name}</h1>
+    <p>{category.description}</p>
+  </section>
+  <section class="catalog-section section" aria-label="Collection categories">
+    <nav class="catalog-filter"><a href="/collections">All collections</a>{categories.map((item) => <a aria-current={item.slug === category.slug ? "page" : undefined} href={`/collections/${item.slug}`}>{item.name}</a>)}</nav>
+  </section>
+  <section class="catalog-section section" aria-labelledby="category-products">
+    <header class="catalog-section-heading"><p class="eyebrow">{category.name}</p><h2 id="category-products">Objects for considered spaces.</h2></header>
+    {products.items.length ? <div class="product-grid">{products.items.map((product) => <ProductCard product={product} />)}</div> : <p class="catalog-empty">No published products are available in this collection yet.</p>}
+    {products.totalPages > 1 && <nav class="pagination" aria-label="Product pages">{products.page > 1 && <a href={`/collections/${category.slug}?page=${products.page - 1}`}>Previous</a>}<span>Page {products.page} of {products.totalPages}</span>{products.page < products.totalPages && <a href={`/collections/${category.slug}?page=${products.page + 1}`}>Next</a>}</nav>}
+  </section>
+</PublicLayout>
