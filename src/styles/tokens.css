@@ -11,7 +11,7 @@
 
   /* Typography */
   --font-display: "Cormorant Garamond", "Times New Roman", serif;
-  --font-body: Inter, "Helvetica Neue", Arial, sans-serif;
+  --font-body: Manrope, "Helvetica Neue", Arial, sans-serif;
   --text-display-xl: clamp(4rem, 8vw, 8.75rem);
   --text-display-lg: clamp(3rem, 5.7vw, 6.5rem);
   --text-display-md: clamp(2.5rem, 4vw, 4.5rem);

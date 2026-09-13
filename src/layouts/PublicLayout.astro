@@ -1,0 +1,44 @@
+---
+import Footer from "../components/public/Footer.astro";
+import Header from "../components/public/Header.astro";
+import "../styles/global.css";
+import "../styles/public.css";
+
+export interface Props {
+  title: string;
+  description: string;
+  canonical?: string;
+  socialImage?: string;
+  theme?: "light" | "dark" | "transparent";
+  companyName?: string;
+  tagline?: string;
+  social?: { instagramUrl?: string; pinterestUrl?: string; linkedinUrl?: string };
+}
+
+const { title, description, canonical, socialImage, theme = "transparent", companyName, tagline, social } = Astro.props;
+const canonicalUrl = canonical ? new URL(canonical, Astro.url) : Astro.url;
+const socialImageUrl = socialImage ? new URL(socialImage, Astro.url) : undefined;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#f3f0e8" />
+    <link rel="canonical" href={canonicalUrl} />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23332d27'/%3E%3Cpath d='M19 15h27v6H26v8h17v6H26v8h21v6H19z' fill='%23f3f0e8'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=Manrope:wght@400;500&display=swap" rel="stylesheet" />
+    <meta property="og:title" content={title} /><meta property="og:description" content={description} /><meta property="og:type" content="website" /><meta property="og:url" content={canonicalUrl} />
+    {socialImageUrl && <meta property="og:image" content={socialImageUrl} />}
+    <title>{title}</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <Header theme={theme} />
+    <main id="main"><slot /></main>
+    <Footer companyName={companyName} tagline={tagline} social={social} />
+  </body>
+</html>

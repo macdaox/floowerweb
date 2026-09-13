@@ -1,0 +1,25 @@
+---
+interface Props {
+  theme?: "light" | "dark" | "transparent";
+}
+
+const { theme = "transparent" } = Astro.props;
+const navigation = [
+  ["Home", "/"], ["Collections", "/collections"], ["Spaces", "/spaces"], ["Journal", "/journal"], ["About Us", "/about"], ["Contact Us", "/contact"],
+] as const;
+---
+
+<header class:list={["site-header", `site-header-${theme}`]}>
+  <a class="wordmark" href="/" aria-label="EVERSTEM home">EVERSTEM</a>
+  <button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-navigation" data-menu-button><span>Menu</span><i></i><i></i></button>
+  <nav id="primary-navigation" class="primary-nav" aria-label="Primary navigation" data-menu>
+    {navigation.map(([label, href]) => <a href={href}>{label}</a>)}
+  </nav>
+  <a class="header-cta" href="/wholesale#catalog-form">Request Catalog</a>
+</header>
+
+<script>
+  import { initializeMobileMenu } from "./MobileMenu";
+  initializeMobileMenu();
+  document.addEventListener("astro:page-load", initializeMobileMenu);
+</script>
