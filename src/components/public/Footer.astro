@@ -13,6 +13,6 @@ const navigation = [["Collections", "/collections"], ["Spaces", "/spaces"], ["Jo
   <div class="footer-brand"><a class="footer-wordmark" href="/">{companyName}</a><p>{tagline}</p></div>
   <nav aria-label="Footer navigation">{navigation.map(([label, href]) => <a href={href}>{label}</a>)}</nav>
   <div class="footer-social"><a href={social.instagramUrl ?? "#footer"}>Instagram</a><a href={social.pinterestUrl ?? "#footer"}>Pinterest</a><a href={social.linkedinUrl ?? "#footer"}>LinkedIn</a></div>
-  <form class="newsletter" action="/api/subscribers" method="post"><label for="newsletter-email">Notes from EVERSTEM</label><div><input id="newsletter-email" name="email" type="email" autocomplete="email" placeholder="Email address" required /><button type="submit">Subscribe <span aria-hidden="true">→</span></button></div></form>
+  <form class="newsletter" action="/api/subscribers" method="post" aria-labelledby="newsletter-heading"><p class="newsletter-heading" id="newsletter-heading">Notes from EVERSTEM</p><div><label class="visually-hidden" for="newsletter-email">Email address</label><input id="newsletter-email" name="email" type="email" autocomplete="email" placeholder="Email address" required /><button type="submit">Subscribe <span aria-hidden="true">→</span></button></div></form>
   <div class="footer-legal"><span>© {new Date().getFullYear()} EVERSTEM</span><span><a href="/privacy">Privacy</a> <a href="/terms">Terms</a></span></div>
 </footer>

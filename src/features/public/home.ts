@@ -1,136 +1,70 @@
-export interface HomeMedia {
-  src: string;
-  alt: string;
-}
-
-export interface HomeCategory {
-  name: string;
-  slug: string;
-  description: string;
-  image: HomeMedia;
-}
-
-export interface HomeProduct {
-  name: string;
-  slug: string;
-  summary: string;
-  categorySlug: string;
-}
-
-export interface HomeSpace {
-  title: string;
-  slug: string;
-  category: string;
-  summary: string;
-  image: HomeMedia;
-}
-
-export interface HomeArticle {
-  title: string;
-  slug: string;
-  category: string;
-  readTime: string;
-  image: HomeMedia;
-}
-
+export interface HomeMedia { src: string; alt: string; }
+export interface HomeCategory { name: string; slug: string; description: string; image?: HomeMedia; }
+export interface HomeProduct { name: string; slug: string; summary: string; categorySlug: string; }
+export interface HomeSpace { title: string; slug: string; category: string; summary: string; image?: HomeMedia; }
+export interface HomeArticle { title: string; slug: string; category: string; readTime: string; image?: HomeMedia; }
 export interface HomeContent {
   seo: { title: string; description: string };
-  hero: { eyebrow: string; title: string; image: HomeMedia };
-  categories: HomeCategory[];
-  products: HomeProduct[];
-  space: HomeSpace;
-  articles: HomeArticle[];
-  settings: {
-    companyName: string;
-    tagline: string;
-    instagramUrl?: string;
-    pinterestUrl?: string;
-    linkedinUrl?: string;
-  };
+  hero?: { eyebrow: string; title: string; image?: HomeMedia };
+  categories: HomeCategory[]; products: HomeProduct[]; space?: HomeSpace; articles: HomeArticle[];
+  settings: { companyName: string; tagline: string; instagramUrl?: string; pinterestUrl?: string; linkedinUrl?: string };
 }
 
 type Row = Record<string, unknown>;
-
+type Read<T> = { failed: false; value: T } | { failed: true };
+type ParsedHero = { eyebrow: string; title: string; imageId?: string };
 const asset = (filename: string) => `/assets/${filename}`;
 const media = (filename: string, alt: string): HomeMedia => ({ src: asset(filename), alt });
 
 export async function loadHomeContent(binding?: D1Database): Promise<HomeContent> {
   if (!binding) return fallbackHomeContent;
-
-  try {
-    const [page, categoryResult, productResult, space, articleResult, settings] = await Promise.all([
-      binding.prepare("SELECT sections_json, seo_title, seo_description FROM pages WHERE page_key = 'home' AND locale = 'en' AND status = 'published' LIMIT 1").first<Row>(),
-      binding.prepare(`SELECT c.name, c.slug, c.description, m.original_filename, m.alt_text
-        FROM categories c LEFT JOIN media m ON m.id = c.cover_media_id
-        WHERE c.locale = 'en' AND c.status = 'published' ORDER BY c.sort_order, c.name`).all<Row>(),
-      binding.prepare(`SELECT p.name, p.slug, p.summary, c.slug AS category_slug
-        FROM products p JOIN categories c ON c.id = p.category_id
-        WHERE p.locale = 'en' AND p.status = 'published' ORDER BY c.sort_order, p.name`).all<Row>(),
-      binding.prepare(`SELECT s.title, s.slug, s.category, s.summary, m.original_filename, m.alt_text
-        FROM spaces s LEFT JOIN media m ON m.id = s.cover_media_id
-        WHERE s.locale = 'en' AND s.status = 'published' ORDER BY s.updated_at DESC LIMIT 1`).first<Row>(),
-      binding.prepare(`SELECT a.title, a.slug, m.original_filename, m.alt_text
-        FROM articles a LEFT JOIN media m ON m.id = a.cover_media_id
-        WHERE a.locale = 'en' AND a.status = 'published' ORDER BY a.published_at DESC LIMIT 3`).all<Row>(),
-      binding.prepare("SELECT company_name, tagline, instagram_url, pinterest_url, linkedin_url FROM settings WHERE id = 'site' LIMIT 1").first<Row>(),
-    ]);
-
-    const hero = parseHero(page?.sections_json);
-    const categories = categoryResult.results.map((row) => ({
-      name: text(row.name), slug: text(row.slug), description: text(row.description), image: rowMedia(row),
-    })).filter((category) => category.name && category.slug && category.image.src);
-    const products = productResult.results.map((row) => ({
-      name: text(row.name), slug: text(row.slug), summary: text(row.summary), categorySlug: text(row.category_slug),
-    })).filter((product) => product.name && product.slug && product.categorySlug);
-    const articles = articleResult.results.map((row, index) => ({
-      title: text(row.title), slug: text(row.slug), category: ["Material development", "Display design", "Commercial space"][index] ?? "Journal",
-      readTime: ["4 min", "7 min", "5 min"][index] ?? "5 min", image: rowMedia(row),
-    })).filter((article) => article.title && article.slug && article.image.src);
-
-    if (!page || !hero || categories.length < 5 || products.length === 0 || !space || articles.length < 3 || !settings) return fallbackHomeContent;
-
-    return {
-      seo: { title: text(page.seo_title) || fallbackHomeContent.seo.title, description: text(page.seo_description) || fallbackHomeContent.seo.description },
-      hero: { eyebrow: hero.eyebrow, title: hero.title, image: fallbackHomeContent.hero.image },
-      categories,
-      products,
-      space: { title: text(space.title), slug: text(space.slug), category: text(space.category), summary: text(space.summary), image: rowMedia(space) },
-      articles,
-      settings: {
-        companyName: text(settings.company_name) || fallbackHomeContent.settings.companyName,
-        tagline: text(settings.tagline) || fallbackHomeContent.settings.tagline,
-        instagramUrl: optionalText(settings.instagram_url), pinterestUrl: optionalText(settings.pinterest_url), linkedinUrl: optionalText(settings.linkedin_url),
-      },
-    };
-  } catch {
-    return fallbackHomeContent;
-  }
+  const [pageRead, categoriesRead, productsRead, spaceRead, articlesRead, settingsRead] = await Promise.all([
+    safely(() => binding.prepare("SELECT sections_json, seo_title, seo_description FROM pages WHERE page_key = 'home' AND locale = 'en' AND status = 'published' LIMIT 1").first<Row>()),
+    safely(() => binding.prepare(`SELECT c.name, c.slug, c.description, m.original_filename, m.alt_text FROM categories c LEFT JOIN media m ON m.id = c.cover_media_id WHERE c.locale = 'en' AND c.status = 'published' ORDER BY c.sort_order, c.name`).all<Row>()),
+    safely(() => binding.prepare(`SELECT p.name, p.slug, p.summary, c.slug AS category_slug FROM products p JOIN categories c ON c.id = p.category_id WHERE p.locale = 'en' AND p.status = 'published' ORDER BY c.sort_order, p.name`).all<Row>()),
+    safely(() => binding.prepare(`SELECT s.title, s.slug, s.category, s.summary, m.original_filename, m.alt_text FROM spaces s LEFT JOIN media m ON m.id = s.cover_media_id WHERE s.locale = 'en' AND s.status = 'published' ORDER BY s.updated_at DESC LIMIT 1`).first<Row>()),
+    safely(() => binding.prepare(`SELECT a.title, a.slug, m.original_filename, m.alt_text FROM articles a LEFT JOIN media m ON m.id = a.cover_media_id WHERE a.locale = 'en' AND a.status = 'published' ORDER BY a.published_at DESC LIMIT 3`).all<Row>()),
+    safely(() => binding.prepare("SELECT company_name, tagline, instagram_url, pinterest_url, linkedin_url, default_seo_title, default_seo_description FROM settings WHERE id = 'site' LIMIT 1").first<Row>()),
+  ]);
+  const page = pageRead.failed ? undefined : pageRead.value;
+  const parsedHero: ParsedHero | undefined = pageRead.failed && fallbackHomeContent.hero
+    ? { eyebrow: fallbackHomeContent.hero.eyebrow, title: fallbackHomeContent.hero.title }
+    : parseHero(page?.sections_json);
+  const heroMediaRead = parsedHero?.imageId ? await safely(() => binding.prepare("SELECT original_filename, alt_text FROM media WHERE id = ? LIMIT 1").bind(parsedHero.imageId).first<Row>()) : undefined;
+  const heroImage = pageRead.failed ? fallbackHomeContent.hero?.image : heroMediaRead?.failed ? fallbackHomeContent.hero?.image : heroMediaRead ? rowMedia(heroMediaRead.value) : undefined;
+  return {
+    seo: pageRead.failed ? fallbackHomeContent.seo : { title: text(page?.seo_title) || text(settingsRead.failed ? undefined : settingsRead.value?.default_seo_title) || "EVERSTEM", description: text(page?.seo_description) || text(settingsRead.failed ? undefined : settingsRead.value?.default_seo_description) || "" },
+    hero: parsedHero && { eyebrow: parsedHero.eyebrow, title: parsedHero.title, image: heroImage },
+    categories: categoriesRead.failed ? fallbackHomeContent.categories : categoriesRead.value.results.map(categoryFrom).filter(isCategory),
+    products: productsRead.failed ? fallbackHomeContent.products : productsRead.value.results.map(productFrom).filter(isProduct),
+    space: spaceRead.failed ? fallbackHomeContent.space : spaceFrom(spaceRead.value),
+    articles: articlesRead.failed ? fallbackHomeContent.articles : articlesRead.value.results.map(articleFrom).filter(isArticle),
+    settings: settingsRead.failed ? fallbackHomeContent.settings : settingsFrom(settingsRead.value),
+  };
 }
 
-function parseHero(value: unknown): { eyebrow: string; title: string } | undefined {
+async function safely<T>(read: () => Promise<T>): Promise<Read<T>> { try { return { failed: false, value: await read() }; } catch { return { failed: true }; } }
+function parseHero(value: unknown): ParsedHero | undefined {
   if (typeof value !== "string") return undefined;
   try {
-    const section = JSON.parse(value)?.find((item: unknown) => typeof item === "object" && item !== null && (item as { type?: string }).type === "hero") as { eyebrow?: unknown; title?: unknown } | undefined;
-    if (typeof section?.eyebrow !== "string" || typeof section.title !== "string") return undefined;
-    return { eyebrow: section.eyebrow, title: section.title };
-  } catch {
-    return undefined;
-  }
+    const sections = JSON.parse(value);
+    if (!Array.isArray(sections)) return undefined;
+    const section = sections.find((item): item is { type?: unknown; eyebrow?: unknown; title?: unknown; image?: unknown } => typeof item === "object" && item !== null && (item as { type?: unknown }).type === "hero");
+    if (typeof section?.eyebrow !== "string" || !section.eyebrow.trim() || typeof section.title !== "string" || !section.title.trim()) return undefined;
+    return { eyebrow: section.eyebrow, title: section.title, imageId: typeof section.image === "string" && section.image.trim() ? section.image : undefined };
+  } catch { return undefined; }
 }
-
-function rowMedia(row: Row): HomeMedia {
-  const filename = text(row.original_filename);
-  return filename ? media(filename, text(row.alt_text)) : { src: "", alt: "" };
-}
-
-function text(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
-function optionalText(value: unknown): string | undefined {
-  const result = text(value);
-  return result || undefined;
-}
+function categoryFrom(row: Row): HomeCategory { return { name: text(row.name), slug: text(row.slug), description: text(row.description), image: rowMedia(row) }; }
+function productFrom(row: Row): HomeProduct { return { name: text(row.name), slug: text(row.slug), summary: text(row.summary), categorySlug: text(row.category_slug) }; }
+function spaceFrom(row: Row | null): HomeSpace | undefined { if (!row) return undefined; const space = { title: text(row.title), slug: text(row.slug), category: text(row.category), summary: text(row.summary), image: rowMedia(row) }; return space.title && space.slug ? space : undefined; }
+function articleFrom(row: Row, index: number): HomeArticle { return { title: text(row.title), slug: text(row.slug), category: ["Material development", "Display design", "Commercial space"][index] ?? "Journal", readTime: ["4 min", "7 min", "5 min"][index] ?? "5 min", image: rowMedia(row) }; }
+function settingsFrom(row: Row | null): HomeContent["settings"] { return { companyName: text(row?.company_name), tagline: text(row?.tagline), instagramUrl: optionalText(row?.instagram_url), pinterestUrl: optionalText(row?.pinterest_url), linkedinUrl: optionalText(row?.linkedin_url) }; }
+function rowMedia(row: Row | null): HomeMedia | undefined { const filename = text(row?.original_filename); return filename ? media(filename, text(row?.alt_text)) : undefined; }
+function isCategory(category: HomeCategory): boolean { return Boolean(category.name && category.slug); }
+function isProduct(product: HomeProduct): boolean { return Boolean(product.name && product.slug && product.categorySlug); }
+function isArticle(article: HomeArticle): boolean { return Boolean(article.title && article.slug); }
+function text(value: unknown): string { return typeof value === "string" ? value : ""; }
+function optionalText(value: unknown): string | undefined { const result = text(value); return result || undefined; }
 
 const fallbackHomeContent: HomeContent = {
   seo: { title: "EVERSTEM | Artificial Flowers and Botanical Objects", description: "Artificial flowers, plants and trees for wholesale buyers worldwide." },
