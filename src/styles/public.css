@@ -9,6 +9,8 @@
 .header-cta { justify-self: end; padding-bottom: .25rem; border-bottom: 1px solid currentColor; }
 .menu-button { display: none; }
 
+.form-error, .form-feedback { min-height: 1.1rem; margin: .35rem 0 0; color: #8f3022; font-size: .7rem; line-height: 1.4; }.form-feedback { max-width: 28rem; }.newsletter .form-feedback { color: var(--color-ivory); }.newsletter .form-feedback[data-error] { color: #f5b5a9; }.catalog-form [aria-invalid="true"], .product-inquiry-form [aria-invalid="true"], .newsletter [aria-invalid="true"] { border-bottom-color: #8f3022; }
+
 .hero { position: relative; display: grid; min-height: min(940px, 100svh); grid-template-columns: 46% 54%; background: var(--color-stone); }
 .hero-copy { z-index: 2; align-self: center; padding: calc(var(--nav-height) + 2rem) clamp(2rem, 5vw, 6rem) 4rem var(--page-gutter); }
 .hero h1 { margin-bottom: 1.2rem; font-size: clamp(4.6rem, 7.5vw, 8.2rem); line-height: .8; letter-spacing: -.05em; text-transform: uppercase; }

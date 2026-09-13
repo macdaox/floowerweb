@@ -8,9 +8,9 @@ test("published product details are visible without commercial pricing", async (
   await expect(page.locator(".product-gallery figure")).toHaveCount(1);
   await expect(page.getByText(/price/i)).toHaveCount(0);
   const inquiry = page.getByRole("form", { name: /inquire about magnolia/i });
-  await expect(inquiry.getByRole("button", { name: /send inquiry/i })).toHaveAttribute("type", "button");
-  await expect(inquiry).not.toHaveAttribute("action", /./);
-  await expect(inquiry).not.toHaveAttribute("method", /post/i);
+  await expect(inquiry.getByRole("button", { name: /send inquiry/i })).toHaveAttribute("type", "submit");
+  await expect(inquiry).toHaveAttribute("action", "/api/inquiries");
+  await expect(inquiry).toHaveAttribute("method", "post");
 });
 
 test("collections expose product cards and category filtering", async ({ page }) => {

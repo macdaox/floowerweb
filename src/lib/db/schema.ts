@@ -225,11 +225,13 @@ export const inquiries = sqliteTable(
     status: text("status", { enum: inquiryStatuses }).notNull(),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
+    idempotencyKey: text("idempotency_key"),
   },
   (table) => [
     index("inquiries_status_created_idx").on(table.status, table.createdAt),
     index("inquiries_assignee_status_idx").on(table.assigneeUserId, table.status),
     index("inquiries_product_created_idx").on(table.productId, table.createdAt),
+    uniqueIndex("inquiries_idempotency_key_unique").on(table.idempotencyKey),
     check("inquiries_type_check", sql`${table.inquiryType} in ('product', 'contact', 'catalog')`),
     check("inquiries_status_check", sql`${table.status} in ('new', 'contacted', 'qualified', 'closed', 'spam')`),
   ],
@@ -271,9 +273,11 @@ export const subscribers = sqliteTable(
     unsubscribedAt: text("unsubscribed_at"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
+    idempotencyKey: text("idempotency_key"),
   },
   (table) => [
     index("subscribers_status_created_idx").on(table.status, table.createdAt),
+    uniqueIndex("subscribers_idempotency_key_unique").on(table.idempotencyKey),
     check("subscribers_status_check", sql`${table.status} in ('subscribed', 'unsubscribed')`),
   ],
 );

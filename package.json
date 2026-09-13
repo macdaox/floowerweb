@@ -28,6 +28,7 @@
     "wrangler": "4.2.0"
   },
   "dependencies": {
-    "drizzle-orm": "^0.44.6"
+    "drizzle-orm": "^0.44.6",
+    "zod": "^3.25.76"
   }
 }

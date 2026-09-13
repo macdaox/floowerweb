@@ -41,5 +41,15 @@ const socialImageUrl = socialImage ? new URL(socialImage, Astro.url) : undefined
     <Header theme={theme} />
     <main id="main"><slot /></main>
     <Footer companyName={companyName} tagline={tagline} social={social} />
+    <script>
+      import { initializeInquiryForms } from "../components/public/InquiryForm";
+      import { initializeNewsletterForms } from "../components/public/NewsletterForm";
+      const initializeForms = () => {
+        initializeInquiryForms();
+        initializeNewsletterForms();
+      };
+      initializeForms();
+      document.addEventListener("astro:page-load", initializeForms);
+    </script>
   </body>
 </html>
