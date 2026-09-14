@@ -1,13 +1,19 @@
 ---
 import SpaceCard from "../../components/public/SpaceCard.astro";
 import PublicLayout from "../../layouts/PublicLayout.astro";
-import { getPublishedSpace, previewSpace } from "../../features/content/service";
+import { getPreviewSpaceById, getPublishedSpace, previewSpace } from "../../features/content/service";
+import { resolvePreviewSecret, verifyPreviewToken } from "../../features/admin-content/preview";
 
 const db = Astro.locals.runtime?.env?.DB;
-const space = db ? await getPublishedSpace(db, "en", Astro.params.slug ?? "") : previewSpace(Astro.params.slug ?? "");
+const slug = Astro.params.slug ?? "";
+const token = Astro.url.searchParams.get("preview");
+const secret = resolvePreviewSecret(Astro.locals.runtime?.env?.SESSION_SECRET);
+const claims = db && token && secret ? await verifyPreviewToken(token, secret, "space") : null;
+if (claims) Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow");
+const space = db ? claims ? await getPreviewSpaceById(db, "en", claims.id, slug) : await getPublishedSpace(db, "en", slug) : previewSpace(slug);
 if (!space) Astro.response.status = 404;
 ---
 
-<PublicLayout title={space ? space.seo.title : "Space not found | EVERSTEM"} description={space ? space.seo.description : "The requested EVERSTEM space is unavailable."} socialImage={space?.images[0]?.src}>
+<PublicLayout title={space ? space.seo.title : "Space not found | EVERSTEM"} description={space ? space.seo.description : "The requested EVERSTEM space is unavailable."} socialImage={space?.images[0]?.src} canonical={`/spaces/${slug}`}>
   {space ? <article><section class="content-hero section"><div><p class="eyebrow">{space.category}{space.location && ` · ${space.location}`}</p><h1>{space.title}</h1></div><p>{space.summary}</p>{space.images[0] && <figure><img src={space.images[0].src} alt={space.images[0].alt} width="1600" height="1000" loading="eager" /></figure>}</section><section class="content-rich-text section"><div>{space.body.split("\n\n").map((paragraph) => <p>{paragraph}</p>)}</div></section>{space.images.slice(1).length > 0 && <section class="space-gallery section">{space.images.slice(1).map((image) => <img src={image.src} alt={image.alt} width="1200" height="900" loading="lazy" />)}</section>}{space.relatedSpaces.length > 0 && <section class="catalog-section section"><header class="catalog-section-heading"><p class="eyebrow">More spaces</p><h2>Related case studies.</h2></header><div class="space-grid">{space.relatedSpaces.map((item) => <SpaceCard space={item} />)}</div></section>}</article> : <section class="empty-state section"><p class="eyebrow">Not found</p><h1>This space has moved on.</h1><p>The case study you requested is unavailable. Browse our current work instead.</p><a class="button button-primary" href="/spaces">View spaces</a></section>}
 </PublicLayout>

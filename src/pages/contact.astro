@@ -1,13 +1,18 @@
 ---
 import PageSections from "../components/public/PageSections.astro";
 import PublicLayout from "../layouts/PublicLayout.astro";
-import { getPublishedPage, previewPages } from "../features/content/service";
+import { getPreviewPageById, getPublishedPage, previewPages } from "../features/content/service";
+import { resolvePreviewSecret, verifyPreviewToken } from "../features/admin-content/preview";
 
 const db = Astro.locals.runtime?.env?.DB;
-const content = db ? await getPublishedPage(db, "contact", "en") ?? previewPages.contact : previewPages.contact;
+const token = Astro.url.searchParams.get("preview");
+const secret = resolvePreviewSecret(Astro.locals.runtime?.env?.SESSION_SECRET);
+const claims = db && token && secret ? await verifyPreviewToken(token, secret, "page") : null;
+if (claims) Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow");
+const content = db ? claims ? await getPreviewPageById(db, claims.id, "contact", "en") : await getPublishedPage(db, "contact", "en") ?? previewPages.contact : previewPages.contact;
 ---
 
-<PublicLayout title={content?.seo.title ?? "Contact | EVERSTEM"} description={content?.seo.description ?? "Contact EVERSTEM."}>
+<PublicLayout title={content?.seo.title ?? "Contact | EVERSTEM"} description={content?.seo.description ?? "Contact EVERSTEM."} canonical="/contact">
   <PageSections sections={content?.sections ?? []} />
   {content ? <section class="form-section section"><header><p class="eyebrow">Enquiries</p><h2>Tell us what you are planning.</h2></header>
     <form class="catalog-form" action="/api/inquiries" method="post" aria-label="Contact EVERSTEM" data-inquiry-form data-inquiry-type="contact" data-source-route="/contact">

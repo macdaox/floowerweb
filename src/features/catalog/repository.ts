@@ -52,6 +52,19 @@ export async function findPublishedProductRow(db: D1Database, locale: string, sl
   `).bind(locale, slug, locale).first<Row>();
 }
 
+export async function findPreviewProductRow(db: D1Database, locale: string, id: string, slug: string): Promise<Row | null> {
+  return db.prepare(`
+    SELECT p.id, p.name, p.slug, p.product_code, p.summary, p.body, p.specifications_json,
+      p.seo_title, p.seo_description, c.name AS category_name, c.slug AS category_slug,
+      m.original_filename, m.alt_text
+    FROM products p
+    JOIN categories c ON c.id = p.category_id
+    LEFT JOIN media m ON m.id = p.cover_media_id AND m.is_deleted = 0
+    WHERE p.id = ? AND p.locale = ? AND p.slug = ? AND p.status <> 'archived'
+    LIMIT 1
+  `).bind(id, locale, slug).first<Row>();
+}
+
 export async function listProductImageRows(db: D1Database, productId: string): Promise<Row[]> {
   const result = await db.prepare(`
     SELECT m.original_filename, COALESCE(pi.alt_text, m.alt_text) AS alt_text
@@ -96,4 +109,14 @@ export async function findPublishedCategoryRow(db: D1Database, locale: string, s
     WHERE c.locale = ? AND c.slug = ? AND c.status = 'published'
     LIMIT 1
   `).bind(locale, slug).first<Row>();
+}
+
+export async function findPreviewCategoryRow(db: D1Database, locale: string, id: string, slug: string): Promise<Row | null> {
+  return db.prepare(`
+    SELECT c.name, c.slug, c.description, m.original_filename, m.alt_text
+    FROM categories c
+    LEFT JOIN media m ON m.id = c.cover_media_id AND m.is_deleted = 0
+    WHERE c.id = ? AND c.locale = ? AND c.slug = ? AND c.status <> 'archived'
+    LIMIT 1
+  `).bind(id, locale, slug).first<Row>();
 }

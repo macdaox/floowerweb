@@ -3,18 +3,25 @@ import ProductCard from "../../components/public/ProductCard.astro";
 import { selectGalleryImage } from "../../components/public/ProductGallery";
 import { productInquiryFields } from "../../components/public/ProductInquiryForm";
 import PublicLayout from "../../layouts/PublicLayout.astro";
-import { getPublishedProductBySlug, previewProduct } from "../../features/catalog/service";
+import { getPreviewProductById, getPublishedProductBySlug, previewProduct } from "../../features/catalog/service";
+import { resolvePreviewSecret, verifyPreviewToken } from "../../features/admin-content/preview";
 
 const slug = Astro.params.slug ?? "";
 const db = Astro.locals.runtime?.env?.DB;
-const product = db ? await getPublishedProductBySlug(db, "en", slug) : previewProduct(slug);
+const token = Astro.url.searchParams.get("preview");
+const previewSecret = resolvePreviewSecret(Astro.locals.runtime?.env?.SESSION_SECRET);
+const claims = db && token && previewSecret ? await verifyPreviewToken(token, previewSecret, "product") : null;
+if (claims) Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow");
+const product = db
+  ? claims ? await getPreviewProductById(db, "en", claims.id, slug) : await getPublishedProductBySlug(db, "en", slug)
+  : previewProduct(slug);
 if (!product) return new Response("Not found", { status: 404 });
 const selectedImage = selectGalleryImage(product.images, 0);
 const galleryImages = selectedImage ? [selectedImage, ...product.images.filter((image) => image.src !== selectedImage.src)] : [];
 const inquiry = productInquiryFields(product.id, product.name, Astro.url.pathname);
 ---
 
-<PublicLayout title={product.seo.title} description={product.seo.description} socialImage={product.images[0]?.src}>
+<PublicLayout title={product.seo.title} description={product.seo.description} socialImage={product.images[0]?.src} canonical={`/products/${slug}`}>
   <article>
     <section class="product-detail section">
       <div class="product-gallery" aria-label={`${product.name} gallery`}>

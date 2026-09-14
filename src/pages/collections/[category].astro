@@ -1,20 +1,25 @@
 ---
 import ProductCard from "../../components/public/ProductCard.astro";
 import PublicLayout from "../../layouts/PublicLayout.astro";
-import { getPublishedCategoryBySlug, listPublishedCategories, listPublishedProducts, previewCatalog } from "../../features/catalog/service";
+import { getPreviewCategoryById, getPublishedCategoryBySlug, listPublishedCategories, listPublishedProducts, previewCatalog } from "../../features/catalog/service";
+import { resolvePreviewSecret, verifyPreviewToken } from "../../features/admin-content/preview";
 
 const slug = Astro.params.category ?? "";
 const db = Astro.locals.runtime?.env?.DB;
 const requestedPage = Number.parseInt(Astro.url.searchParams.get("page") ?? "1", 10);
 const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
 const previewCategory = previewCatalog.categories.find((candidate) => candidate.slug === slug) ?? null;
+const token = Astro.url.searchParams.get("preview");
+const secret = resolvePreviewSecret(Astro.locals.runtime?.env?.SESSION_SECRET);
+const claims = db && token && secret ? await verifyPreviewToken(token, secret, "category") : null;
+if (claims) Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow");
 const [category, categories, products] = db
-  ? await Promise.all([getPublishedCategoryBySlug(db, "en", slug), listPublishedCategories(db, "en"), listPublishedProducts(db, { locale: "en", categorySlug: slug, page })])
+  ? await Promise.all([claims ? getPreviewCategoryById(db, "en", claims.id, slug) : getPublishedCategoryBySlug(db, "en", slug), listPublishedCategories(db, "en"), listPublishedProducts(db, { locale: "en", categorySlug: slug, page })])
   : [previewCategory, previewCatalog.categories, { items: previewCatalog.products.filter((product) => product.category.slug === slug), page: 1, pageSize: 24 as const, total: previewCatalog.products.filter((product) => product.category.slug === slug).length, totalPages: 1 }];
 if (!category) return new Response("Not found", { status: 404 });
 ---
 
-<PublicLayout title={`${category.name} | EVERSTEM`} description={category.description} socialImage={category.image?.src}>
+<PublicLayout title={`${category.name} | EVERSTEM`} description={category.description} socialImage={category.image?.src} canonical={`/collections/${slug}`}>
   <section class="catalog-hero section">
     <p class="eyebrow">Collection</p>
     <h1>{category.name}</h1>

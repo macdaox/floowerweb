@@ -2,6 +2,10 @@ import {
   findPublishedArticleRow,
   findPublishedPageRow,
   findPublishedSpaceRow,
+  findPreviewArticleRow,
+  findPreviewPageByIdRow,
+  findPreviewPageRow,
+  findPreviewSpaceRow,
   listPublishedArticleRows,
   listPublishedSpaceRows,
   listRelatedArticleRows,
@@ -18,6 +22,21 @@ export async function getPublishedPage(db: D1Database, key: string, locale: stri
   const sections = parseStoredPageBlocks(row.sections_json);
   if (!sections) return null;
   return { key: text(row.page_key), sections, seo: { title: text(row.seo_title) || `${titleFor(key)} | EVERSTEM`, description: text(row.seo_description) || descriptionFor(key) } };
+}
+
+export async function getPreviewPageById(db: D1Database, id: string, key: string, locale: string): Promise<ContentPage | null> {
+  const row = await findPreviewPageRow(db, id, key, locale);
+  if (!row) return null;
+  const sections = parseStoredPageBlocks(row.sections_json);
+  return sections ? { key: text(row.page_key), sections, seo: { title: text(row.seo_title) || `${titleFor(key)} | EVERSTEM`, description: text(row.seo_description) || descriptionFor(key) } } : null;
+}
+
+export async function getPreviewPage(db: D1Database, id: string, locale: string): Promise<ContentPage | null> {
+  const row = await findPreviewPageByIdRow(db, id, locale);
+  if (!row) return null;
+  const key = text(row.page_key);
+  const sections = parseStoredPageBlocks(row.sections_json);
+  return sections ? { key, sections, seo: { title: text(row.seo_title) || `${titleFor(key)} | EVERSTEM`, description: text(row.seo_description) || descriptionFor(key) } } : null;
 }
 
 export async function listPublishedSpaces(db: D1Database, locale: string): Promise<SpaceCard[]> {
@@ -39,6 +58,11 @@ export async function getPublishedSpace(db: D1Database, locale: string, slug: st
   };
 }
 
+export async function getPreviewSpaceById(db: D1Database, locale: string, id: string, slug: string): Promise<SpaceDetail | null> {
+  const row = await findPreviewSpaceRow(db, locale, id, slug);
+  return row ? spaceDetailFromRow(db, locale, row) : null;
+}
+
 export const getPublishedSpaceBySlug = getPublishedSpace;
 
 export async function listPublishedArticles(db: D1Database, locale: string): Promise<ArticleCard[]> {
@@ -48,6 +72,25 @@ export async function listPublishedArticles(db: D1Database, locale: string): Pro
 export async function getPublishedArticle(db: D1Database, locale: string, slug: string): Promise<ArticleDetail | null> {
   const row = await findPublishedArticleRow(db, locale, slug);
   if (!row) return null;
+  const card = articleCardFrom(row);
+  if (!isArticleCard(card)) return null;
+  const related = await listRelatedArticleRows(db, locale, text(row.id));
+  return { ...card, id: text(row.id), body: text(row.body), relatedArticles: related.map(articleCardFrom).filter(isArticleCard), seo: { title: text(row.seo_title) || `${card.title} | EVERSTEM`, description: text(row.seo_description) || card.summary } };
+}
+
+export async function getPreviewArticleById(db: D1Database, locale: string, id: string, slug: string): Promise<ArticleDetail | null> {
+  const row = await findPreviewArticleRow(db, locale, id, slug);
+  return row ? articleDetailFromRow(db, locale, row) : null;
+}
+
+async function spaceDetailFromRow(db: D1Database, locale: string, row: Row): Promise<SpaceDetail | null> {
+  const card = spaceCardFrom(row);
+  if (!isSpaceCard(card)) return null;
+  const [images, related] = await Promise.all([listSpaceImageRows(db, text(row.id)), listRelatedSpaceRows(db, locale, card.category, text(row.id))]);
+  return { ...card, id: text(row.id), body: text(row.body), images: uniqueImages([card.image, ...images.map(contentImageFromRow)]), relatedSpaces: related.map(spaceCardFrom).filter(isSpaceCard), seo: { title: text(row.seo_title) || `${card.title} | EVERSTEM`, description: text(row.seo_description) || card.summary } };
+}
+
+async function articleDetailFromRow(db: D1Database, locale: string, row: Row): Promise<ArticleDetail | null> {
   const card = articleCardFrom(row);
   if (!isArticleCard(card)) return null;
   const related = await listRelatedArticleRows(db, locale, text(row.id));

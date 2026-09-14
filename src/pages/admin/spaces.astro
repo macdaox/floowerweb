@@ -1,0 +1,6 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { requireRole } from "../../features/auth/authorize";
+const user = requireRole(Astro.locals, ["admin", "editor"]);
+---
+<AdminLayout title="案例空间" user={user}><section class="dashboard content-admin-page" aria-labelledby="content-title"><header class="dashboard__heading"><div><p class="admin-kicker">内容工作台</p><h1 id="content-title">案例空间</h1></div></header><p class="dashboard-panel__copy">管理案例空间，支持草稿、预览、发布和归档。</p><div data-content-list data-content-entity="spaces"></div></section><script>import { initializeContentList } from "../../components/admin/ContentList"; const root = document.querySelector<HTMLElement>("[data-content-list]"); if (root) initializeContentList(root);</script></AdminLayout>

@@ -2,6 +2,8 @@ import {
   countPublishedProductRows,
   findPublishedCategoryRow,
   findPublishedProductRow,
+  findPreviewCategoryRow,
+  findPreviewProductRow,
   listProductImageRows,
   listPublishedCategoryRows,
   listPublishedProductRows,
@@ -44,6 +46,11 @@ export async function getPublishedProductBySlug(db: D1Database, locale: string, 
   };
 }
 
+export async function getPreviewProductById(db: D1Database, locale: string, id: string, slug: string): Promise<ProductDetail | null> {
+  const row = await findPreviewProductRow(db, locale, id, slug);
+  return row ? detailFromRow(db, locale, row) : null;
+}
+
 export async function listPublishedCategories(db: D1Database, locale: string): Promise<CatalogCategory[]> {
   return (await listPublishedCategoryRows(db, locale)).map(categoryFrom).filter(isCategory);
 }
@@ -52,6 +59,28 @@ export async function getPublishedCategoryBySlug(db: D1Database, locale: string,
   const row = await findPublishedCategoryRow(db, locale, slug);
   const category = row ? categoryFrom(row) : undefined;
   return category && isCategory(category) ? category : null;
+}
+
+export async function getPreviewCategoryById(db: D1Database, locale: string, id: string, slug: string): Promise<CatalogCategory | null> {
+  const row = await findPreviewCategoryRow(db, locale, id, slug);
+  const category = row ? categoryFrom(row) : undefined;
+  return category && isCategory(category) ? category : null;
+}
+
+async function detailFromRow(db: D1Database, locale: string, row: Row): Promise<ProductDetail | null> {
+  const card = cardFrom(row);
+  if (!isCard(card)) return null;
+  const [galleryRows, relatedRows] = await Promise.all([
+    listProductImageRows(db, text(row.id)),
+    listRelatedProductRows(db, locale, card.category.slug, text(row.id)),
+  ]);
+  const images = [mediaFromRow(row), ...galleryRows.map(mediaFromRow)].filter((image): image is NonNullable<typeof image> => Boolean(image));
+  return {
+    ...card,
+    id: text(row.id), productCode: text(row.product_code), body: text(row.body), images: uniqueImages(images),
+    specifications: specificationsFromJson(row.specifications_json), relatedProducts: relatedRows.map(cardFrom).filter(isCard),
+    seo: { title: text(row.seo_title) || `${card.name} | EVERSTEM`, description: text(row.seo_description) || card.summary },
+  };
 }
 
 /** Demo content is used only by the local public shell when a D1 binding is unavailable. */

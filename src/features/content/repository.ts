@@ -4,6 +4,14 @@ export async function findPublishedPageRow(db: D1Database, key: string, locale: 
   return db.prepare("SELECT page_key, sections_json, seo_title, seo_description FROM pages WHERE page_key = ? AND locale = ? AND status = 'published' LIMIT 1").bind(key, locale).first<Row>();
 }
 
+export async function findPreviewPageRow(db: D1Database, id: string, key: string, locale: string): Promise<Row | null> {
+  return db.prepare("SELECT page_key, sections_json, seo_title, seo_description FROM pages WHERE id = ? AND page_key = ? AND locale = ? AND status <> 'archived' LIMIT 1").bind(id, key, locale).first<Row>();
+}
+
+export async function findPreviewPageByIdRow(db: D1Database, id: string, locale: string): Promise<Row | null> {
+  return db.prepare("SELECT page_key, sections_json, seo_title, seo_description FROM pages WHERE id = ? AND locale = ? AND status <> 'archived' LIMIT 1").bind(id, locale).first<Row>();
+}
+
 export async function listPublishedSpaceRows(db: D1Database, locale: string): Promise<Row[]> {
   const result = await db.prepare(`SELECT s.id, s.title, s.slug, s.category, s.location, s.summary, s.body, s.seo_title, s.seo_description, m.original_filename, m.alt_text
     FROM spaces s LEFT JOIN media m ON m.id = s.cover_media_id AND m.is_deleted = 0
@@ -15,6 +23,12 @@ export async function findPublishedSpaceRow(db: D1Database, locale: string, slug
   return db.prepare(`SELECT s.id, s.title, s.slug, s.category, s.location, s.summary, s.body, s.seo_title, s.seo_description, m.original_filename, m.alt_text
     FROM spaces s LEFT JOIN media m ON m.id = s.cover_media_id AND m.is_deleted = 0
     WHERE s.locale = ? AND s.slug = ? AND s.status = 'published' LIMIT 1`).bind(locale, slug).first<Row>();
+}
+
+export async function findPreviewSpaceRow(db: D1Database, locale: string, id: string, slug: string): Promise<Row | null> {
+  return db.prepare(`SELECT s.id, s.title, s.slug, s.category, s.location, s.summary, s.body, s.seo_title, s.seo_description, m.original_filename, m.alt_text
+    FROM spaces s LEFT JOIN media m ON m.id = s.cover_media_id AND m.is_deleted = 0
+    WHERE s.id = ? AND s.locale = ? AND s.slug = ? AND s.status <> 'archived' LIMIT 1`).bind(id, locale, slug).first<Row>();
 }
 
 export async function listSpaceImageRows(db: D1Database, spaceId: string): Promise<Row[]> {
@@ -40,6 +54,12 @@ export async function listPublishedArticleRows(db: D1Database, locale: string): 
 export async function findPublishedArticleRow(db: D1Database, locale: string, slug: string): Promise<Row | null> {
   return db.prepare(`SELECT a.id, a.title, a.slug, a.summary, a.body, a.author, a.published_at, a.seo_title, a.seo_description, m.original_filename, m.alt_text
     FROM articles a LEFT JOIN media m ON m.id = a.cover_media_id AND m.is_deleted = 0 WHERE a.locale = ? AND a.slug = ? AND a.status = 'published' LIMIT 1`).bind(locale, slug).first<Row>();
+}
+
+export async function findPreviewArticleRow(db: D1Database, locale: string, id: string, slug: string): Promise<Row | null> {
+  return db.prepare(`SELECT a.id, a.title, a.slug, a.summary, a.body, a.author, a.published_at, a.seo_title, a.seo_description, m.original_filename, m.alt_text
+    FROM articles a LEFT JOIN media m ON m.id = a.cover_media_id AND m.is_deleted = 0
+    WHERE a.id = ? AND a.locale = ? AND a.slug = ? AND a.status <> 'archived' LIMIT 1`).bind(id, locale, slug).first<Row>();
 }
 
 export async function listRelatedArticleRows(db: D1Database, locale: string, id: string): Promise<Row[]> {

@@ -44,7 +44,14 @@ ON CONFLICT(email) DO UPDATE SET display_name = excluded.display_name, password_
     ["e2e-dashboard-06", "<img src=x>", "safe@example.test", "文本安全", "new", "2099-01-01T00:00:01.000Z"],
   ].map(([id, name, email, company, status, timestamp]) => `INSERT INTO inquiries (id, inquiry_type, name, email, company, source_route, status, created_at, updated_at)
 VALUES (${sql(id)}, 'catalog', ${sql(name)}, ${sql(email)}, ${sql(company)}, '/__e2e__/dashboard', ${sql(status)}, ${sql(timestamp)}, ${sql(timestamp)});`).join("\n");
-  return `DELETE FROM inquiry_interests WHERE inquiry_id LIKE 'e2e-dashboard-%';
+  return `DELETE FROM product_images WHERE product_id IN (SELECT id FROM products WHERE slug LIKE 'e2e-%');
+DELETE FROM products WHERE slug LIKE 'e2e-%';
+DELETE FROM space_images WHERE space_id IN (SELECT id FROM spaces WHERE slug LIKE 'e2e-%');
+DELETE FROM spaces WHERE slug LIKE 'e2e-%';
+DELETE FROM articles WHERE slug LIKE 'e2e-%';
+DELETE FROM pages WHERE page_key LIKE 'e2e-%';
+DELETE FROM categories WHERE slug LIKE 'e2e-%';
+DELETE FROM inquiry_interests WHERE inquiry_id LIKE 'e2e-dashboard-%';
 DELETE FROM inquiries WHERE id LIKE 'e2e-dashboard-%';
 DELETE FROM sessions WHERE user_id IN ('e2e-admin', 'e2e-editor', 'e2e-sales');
 DELETE FROM rate_limits WHERE key = 'auth:login:unknown';

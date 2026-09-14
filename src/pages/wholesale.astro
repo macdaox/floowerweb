@@ -1,12 +1,17 @@
 ---
 import PageSections from "../components/public/PageSections.astro";
 import PublicLayout from "../layouts/PublicLayout.astro";
-import { getPublishedPage, previewPages } from "../features/content/service";
+import { getPreviewPageById, getPublishedPage, previewPages } from "../features/content/service";
+import { resolvePreviewSecret, verifyPreviewToken } from "../features/admin-content/preview";
 const db = Astro.locals.runtime?.env?.DB;
-const content = db ? await getPublishedPage(db, "wholesale", "en") ?? previewPages.wholesale : previewPages.wholesale;
+const token = Astro.url.searchParams.get("preview");
+const secret = resolvePreviewSecret(Astro.locals.runtime?.env?.SESSION_SECRET);
+const claims = db && token && secret ? await verifyPreviewToken(token, secret, "page") : null;
+if (claims) Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow");
+const content = db ? claims ? await getPreviewPageById(db, claims.id, "wholesale", "en") : await getPublishedPage(db, "wholesale", "en") ?? previewPages.wholesale : previewPages.wholesale;
 ---
 
-<PublicLayout title={content?.seo.title ?? "Wholesale | EVERSTEM"} description={content?.seo.description ?? "Wholesale with EVERSTEM."}>
+<PublicLayout title={content?.seo.title ?? "Wholesale | EVERSTEM"} description={content?.seo.description ?? "Wholesale with EVERSTEM."} canonical="/wholesale">
   <PageSections sections={content?.sections ?? []} />
   {content ? <section class="form-section section" id="catalog-form"><header><p class="eyebrow">Request catalog</p><h2>Let’s find the right botanical range.</h2></header>
     <form class="catalog-form" action="/api/inquiries" method="post" aria-label="Request wholesale catalog" data-inquiry-form data-inquiry-type="catalog" data-source-route="/wholesale">
