@@ -2,7 +2,7 @@ export type DataTableColumn<T> = {
   key: string;
   label: string;
   getValue: (row: T) => string | number;
-  render?: (row: T) => string;
+  render?: (cell: HTMLTableCellElement, row: T) => void;
 };
 
 export type DataTableFilter<T> = {
@@ -10,81 +10,194 @@ export type DataTableFilter<T> = {
   matches: (row: T) => boolean;
 };
 
+export type DataTableState<T> =
+  | { status: "loading" }
+  | { status: "error"; message: string; retry?: () => void }
+  | { status: "data"; rows: readonly T[] };
+
 export type DataTableOptions<T> = {
   ariaLabel: string;
-  rows: readonly T[];
   columns: readonly DataTableColumn<T>[];
+  state: DataTableState<T>;
   searchLabel?: string;
   filters?: readonly DataTableFilter<T>[];
   pageSize?: number;
   emptyMessage?: string;
-  errorMessage?: string;
 };
 
-/**
- * A lightweight, framework-free administrative table. It owns its search,
- * filter and pagination state so it can be mounted by any Astro island.
- */
-export function mountDataTable<T>(container: HTMLElement, options: DataTableOptions<T>): void {
+export type DataTableController<T> = {
+  setState: (state: DataTableState<T>) => void;
+};
+
+/** A DOM-safe, framework-free data table with a single async-state contract. */
+export function mountDataTable<T>(container: HTMLElement, options: DataTableOptions<T>): DataTableController<T> {
   const pageSize = options.pageSize ?? 10;
+  const filters = options.filters ?? [];
+  let state = options.state;
   let query = "";
   let activeFilter = 0;
   let page = 1;
+  let composing = false;
 
-  const render = () => {
-    const filters = options.filters ?? [];
-    const matching = options.rows.filter((row) => {
+  const toolbar = document.createElement("div");
+  toolbar.className = "data-table__toolbar";
+  const searchLabel = document.createElement("label");
+  searchLabel.className = "data-table__search";
+  const searchText = document.createElement("span");
+  searchText.textContent = options.searchLabel ?? "搜索";
+  const search = document.createElement("input");
+  search.type = "search";
+  search.autocomplete = "off";
+  search.setAttribute("data-table-search", "");
+  searchLabel.appendChild(searchText);
+  searchLabel.appendChild(search);
+  toolbar.appendChild(searchLabel);
+
+  const filterGroup = document.createElement("div");
+  filterGroup.className = "data-table__filters";
+  filterGroup.setAttribute("aria-label", "筛选");
+  const filterButtons = filters.map((filter, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "data-table__filter";
+    button.textContent = filter.label;
+    button.dataset.tableFilter = String(index);
+    button.addEventListener("click", () => {
+      activeFilter = index;
+      page = 1;
+      render();
+    });
+    filterGroup.appendChild(button);
+    return button;
+  });
+  if (filters.length > 0) toolbar.appendChild(filterGroup);
+
+  const content = document.createElement("div");
+  const pagination = document.createElement("div");
+  pagination.className = "data-table__pagination";
+  pagination.setAttribute("aria-live", "polite");
+  const summary = document.createElement("span");
+  const controls = document.createElement("span");
+  const previous = paginationButton("上一页", "previous");
+  const next = paginationButton("下一页", "next");
+  controls.appendChild(previous);
+  controls.appendChild(next);
+  pagination.appendChild(summary);
+  pagination.appendChild(controls);
+  container.replaceChildren(toolbar, content, pagination);
+
+  search.addEventListener("compositionstart", () => { composing = true; });
+  search.addEventListener("compositionend", () => {
+    composing = false;
+    updateQuery(search.value);
+  });
+  search.addEventListener("input", () => {
+    if (!composing) updateQuery(search.value);
+  });
+  previous.addEventListener("click", () => { page -= 1; render(); });
+  next.addEventListener("click", () => { page += 1; render(); });
+
+  function updateQuery(value: string): void {
+    query = value;
+    page = 1;
+    render();
+  }
+
+  function render(): void {
+    filterButtons.forEach((button, index) => {
+      const active = index === activeFilter;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+
+    if (state.status === "loading") {
+      content.replaceChildren(message("data-table__loading", "正在加载数据…", "status"));
+      setPagination(0, 0, 1);
+      return;
+    }
+    if (state.status === "error") {
+      const error = document.createElement("div");
+      error.className = "data-table__error";
+      error.setAttribute("role", "alert");
+      error.appendChild(message("", state.message));
+      if (state.retry) {
+        const retry = document.createElement("button");
+        retry.type = "button";
+        retry.textContent = "重试";
+        retry.addEventListener("click", state.retry);
+        error.appendChild(retry);
+      }
+      content.replaceChildren(error);
+      setPagination(0, 0, 1);
+      return;
+    }
+
+    const matching = state.rows.filter((row) => {
       const searchable = options.columns.map((column) => String(column.getValue(row))).join(" ").toLocaleLowerCase();
       return searchable.includes(query.toLocaleLowerCase()) && (!filters[activeFilter] || filters[activeFilter].matches(row));
     });
     const pageCount = Math.max(1, Math.ceil(matching.length / pageSize));
-    page = Math.min(page, pageCount);
+    page = Math.min(Math.max(page, 1), pageCount);
     const visible = matching.slice((page - 1) * pageSize, page * pageSize);
 
-    container.innerHTML = `
-      <div class="data-table__toolbar">
-        <label class="data-table__search">
-          <span>${escapeHtml(options.searchLabel ?? "搜索")}</span>
-          <input type="search" data-table-search value="${escapeHtml(query)}" autocomplete="off" />
-        </label>
-        ${filters.length > 0 ? `<div class="data-table__filters" aria-label="筛选">${filters.map((filter, index) => `<button type="button" class="data-table__filter${index === activeFilter ? " is-active" : ""}" data-table-filter="${index}" aria-pressed="${index === activeFilter}">${escapeHtml(filter.label)}</button>`).join("")}</div>` : ""}
-      </div>
-      ${visible.length > 0 ? `<div class="data-table__scroll"><table aria-label="${escapeHtml(options.ariaLabel)}"><thead><tr>${options.columns.map((column) => `<th scope="col">${escapeHtml(column.label)}</th>`).join("")}</tr></thead><tbody>${visible.map((row) => `<tr>${options.columns.map((column) => `<td>${column.render ? column.render(row) : escapeHtml(String(column.getValue(row)))}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : `<p class="data-table__empty" role="status">${escapeHtml(options.emptyMessage ?? "没有符合条件的记录。")}</p>`}
-      <div class="data-table__pagination" aria-live="polite">
-        <span>显示 ${matching.length === 0 ? 0 : (page - 1) * pageSize + 1}–${Math.min(page * pageSize, matching.length)}，共 ${matching.length} 条</span>
-        <span><button type="button" data-table-page="previous" ${page === 1 ? "disabled" : ""}>上一页</button><button type="button" data-table-page="next" ${page === pageCount ? "disabled" : ""}>下一页</button></span>
-      </div>`;
-  };
-
-  container.addEventListener("input", (event) => {
-    const target = event.target as HTMLInputElement;
-    if (!target.matches("[data-table-search]")) return;
-    query = target.value;
-    page = 1;
-    render();
-    const search = container.querySelector<HTMLInputElement>("[data-table-search]");
-    search?.focus();
-    search?.setSelectionRange(search.value.length, search.value.length);
-  });
-  container.addEventListener("click", (event) => {
-    const button = (event.target as Element).closest<HTMLButtonElement>("button");
-    if (!button) return;
-    if (button.dataset.tableFilter !== undefined) {
-      activeFilter = Number(button.dataset.tableFilter);
-      page = 1;
-      render();
+    if (visible.length === 0) {
+      content.replaceChildren(message("data-table__empty", options.emptyMessage ?? "没有符合条件的记录。", "status"));
+    } else {
+      const scroll = document.createElement("div");
+      scroll.className = "data-table__scroll";
+      const table = document.createElement("table");
+      table.setAttribute("aria-label", options.ariaLabel);
+      const head = document.createElement("thead");
+      const headRow = document.createElement("tr");
+      options.columns.forEach((column) => {
+        const cell = document.createElement("th");
+        cell.scope = "col";
+        cell.textContent = column.label;
+        headRow.appendChild(cell);
+      });
+      head.appendChild(headRow);
+      const body = document.createElement("tbody");
+      visible.forEach((row) => {
+        const rowElement = document.createElement("tr");
+        options.columns.forEach((column) => {
+          const cell = document.createElement("td");
+          if (column.render) column.render(cell, row);
+          else cell.textContent = String(column.getValue(row));
+          rowElement.appendChild(cell);
+        });
+        body.appendChild(rowElement);
+      });
+      table.appendChild(head);
+      table.appendChild(body);
+      scroll.appendChild(table);
+      content.replaceChildren(scroll);
     }
-    if (button.dataset.tablePage === "previous") { page -= 1; render(); }
-    if (button.dataset.tablePage === "next") { page += 1; render(); }
-  });
+    setPagination(matching.length, visible.length, pageCount);
+  }
+
+  function setPagination(total: number, visibleCount: number, pageCount: number): void {
+    const first = total === 0 ? 0 : (page - 1) * pageSize + 1;
+    summary.textContent = `显示 ${first}–${Math.min(first + visibleCount - 1, total)}，共 ${total} 条`;
+    previous.disabled = page <= 1 || total === 0;
+    next.disabled = page >= pageCount || total === 0;
+  }
+
   render();
+  return { setState(nextState) { state = nextState; page = 1; render(); } };
 }
 
-export function renderDataTableError(container: HTMLElement, message = "无法加载数据，请稍后重试。", retry?: () => void): void {
-  container.innerHTML = `<div class="data-table__error" role="alert"><p>${escapeHtml(message)}</p><button type="button" data-table-retry>重试</button></div>`;
-  container.querySelector<HTMLButtonElement>("[data-table-retry]")?.addEventListener("click", () => retry?.());
+function paginationButton(label: string, direction: "previous" | "next"): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = label;
+  button.dataset.tablePage = direction;
+  return button;
 }
 
-function escapeHtml(value: string): string {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+function message(className: string, value: string, role?: "status"): HTMLParagraphElement {
+  const element = document.createElement("p");
+  element.className = className;
+  element.textContent = value;
+  if (role) element.setAttribute("role", role);
+  return element;
 }

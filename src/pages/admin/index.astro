@@ -3,23 +3,37 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
 import { requireRole } from "../../features/auth/authorize";
 
 const user = requireRole(Astro.locals, ["admin", "editor", "sales"]);
+const isContentDashboard = user.role === "editor";
 ---
 
 <AdminLayout title="仪表盘" user={user}>
-  <section class="dashboard" data-admin-dashboard aria-labelledby="dashboard-title">
+  <section class="dashboard" data-admin-dashboard data-dashboard-kind={isContentDashboard ? "content" : "sales"} aria-labelledby="dashboard-title">
     <header class="dashboard__heading">
-      <div><p class="admin-kicker">概览</p><h1 id="dashboard-title" aria-label="Dashboard">仪表盘</h1></div>
+      <div><p class="admin-kicker">概览</p><h1 id="dashboard-title">仪表盘</h1></div>
       <p>欢迎回来，{user.displayName}。</p>
     </header>
-    <section class="dashboard-metrics" aria-label="关键指标">
-      <article><p>新询盘 <span class="visually-hidden">New inquiries</span></p><strong data-dashboard-metric>—</strong></article>
-      <article><p>本周收到</p><strong data-dashboard-metric>—</strong></article>
-      <article><p>有效订阅者</p><strong data-dashboard-metric>—</strong></article>
-      <article><p>已发布产品</p><strong data-dashboard-metric>—</strong></article>
-    </section>
-    <section class="dashboard-panel" aria-labelledby="recent-inquiries-title">
-      <div class="dashboard-panel__heading"><div><p class="admin-kicker">销售</p><h2 id="recent-inquiries-title">最近询盘</h2></div><a href="/admin/inquiries">查看全部</a></div>
-      <div data-recent-inquiries><p class="data-table__loading" role="status">正在加载最近询盘…</p></div>
-    </section>
+    {isContentDashboard ? <>
+      <section class="dashboard-metrics" aria-label="内容指标">
+        <article><p>草稿产品</p><strong data-dashboard-metric="draftProducts">—</strong></article>
+        <article><p>已发布产品</p><strong data-dashboard-metric="publishedProducts">—</strong></article>
+        <article><p>草稿案例</p><strong data-dashboard-metric="draftSpaces">—</strong></article>
+        <article><p>草稿期刊</p><strong data-dashboard-metric="draftArticles">—</strong></article>
+      </section>
+      <section class="dashboard-panel" aria-labelledby="content-work-title">
+        <div class="dashboard-panel__heading"><div><p class="admin-kicker">内容</p><h2 id="content-work-title">内容工作台</h2></div><a href="/admin/products">管理内容</a></div>
+        <p class="dashboard-panel__copy">从产品、案例、期刊和页面开始整理内容。</p>
+      </section>
+    </> : <>
+      <section class="dashboard-metrics" aria-label="销售指标">
+        <article><p>新询盘</p><strong data-testid="new-inquiries-metric" data-dashboard-metric="newInquiries">—</strong></article>
+        <article><p>最近7天收到</p><strong data-dashboard-metric="recentSevenDays">—</strong></article>
+        <article><p>有效订阅者</p><strong data-dashboard-metric="activeSubscribers">—</strong></article>
+        <article><p>已发布产品</p><strong data-dashboard-metric="publishedProducts">—</strong></article>
+      </section>
+      <section class="dashboard-panel" aria-labelledby="recent-inquiries-title">
+        <div class="dashboard-panel__heading"><div><p class="admin-kicker">销售</p><h2 id="recent-inquiries-title">最近询盘</h2></div><a href="/admin/inquiries">查看全部</a></div>
+        <div data-recent-inquiries></div>
+      </section>
+    </>}
   </section>
 </AdminLayout>

@@ -8,6 +8,9 @@ const labels: Record<InquiryStatus, string> = {
   spam: "垃圾信息",
 };
 
-export function statusBadge(status: InquiryStatus): string {
-  return `<span class="status-badge status-badge--${status}">${labels[status]}</span>`;
+export function appendStatusBadge(container: HTMLElement, status: InquiryStatus): void {
+  const badge = document.createElement("span");
+  badge.className = `status-badge status-badge--${status}`;
+  badge.textContent = labels[status];
+  container.appendChild(badge);
 }
