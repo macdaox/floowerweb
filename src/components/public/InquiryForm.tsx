@@ -1,6 +1,6 @@
 type ApiFailure = { error?: { message?: string; fields?: Record<string, string> } };
 
-const fieldNames: Record<string, string> = { productId: "product_id", buyerType: "buyer_type" };
+const fieldNames: Record<string, string> = { productId: "product_id", buyerType: "buyer_type", interests: "product_interest" };
 
 export function initializeInquiryForms(): void {
   document.querySelectorAll<HTMLFormElement>("[data-inquiry-form]").forEach((form) => {
@@ -11,15 +11,17 @@ export function initializeInquiryForms(): void {
       clearErrors(form);
       const button = form.querySelector<HTMLButtonElement>("button[type=submit]");
       const status = form.querySelector<HTMLElement>("[role=status]");
+      const payload = inquiryPayload(form);
       setLoading(form, button, status, true);
       try {
         const response = await fetch("/api/inquiries", {
           method: "POST",
-          headers: { "content-type": "application/json", "idempotency-key": idempotencyKey() },
-          body: JSON.stringify(inquiryPayload(form)),
+          headers: { "content-type": "application/json", "idempotency-key": idempotencyKey(form, payload) },
+          body: JSON.stringify(payload),
         });
         if (response.status === 204 || response.ok) {
           form.reset();
+          clearIdempotencyKey(form);
           announce(status, "Thank you. Your enquiry has been received.");
           return;
         }
@@ -99,6 +101,16 @@ function stringValue(value: FormDataEntryValue | null | undefined): string {
   return typeof value === "string" ? value : "";
 }
 
-function idempotencyKey(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+function idempotencyKey(form: HTMLFormElement, payload: unknown): string {
+  const signature = JSON.stringify(payload);
+  if (form.dataset.submissionPayload === signature && form.dataset.idempotencyKey) return form.dataset.idempotencyKey;
+  const key = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  form.dataset.submissionPayload = signature;
+  form.dataset.idempotencyKey = key;
+  return key;
+}
+
+function clearIdempotencyKey(form: HTMLFormElement): void {
+  delete form.dataset.submissionPayload;
+  delete form.dataset.idempotencyKey;
 }

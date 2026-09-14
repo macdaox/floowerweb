@@ -8,6 +8,7 @@
 .primary-nav a:hover::after { transform: scaleX(1); transform-origin: left; }
 .header-cta { justify-self: end; padding-bottom: .25rem; border-bottom: 1px solid currentColor; }
 .menu-button { display: none; }
+.submission-notice { margin: var(--nav-height) var(--page-gutter) 0; padding: 1rem 1.2rem; background: var(--color-stone); color: var(--color-brown); font-size: .75rem; }
 
 .form-error, .form-feedback { min-height: 1.1rem; margin: .35rem 0 0; color: #8f3022; font-size: .7rem; line-height: 1.4; }.form-feedback { max-width: 28rem; }.newsletter .form-feedback { color: var(--color-ivory); }.newsletter .form-feedback[data-error] { color: #f5b5a9; }.catalog-form [aria-invalid="true"], .product-inquiry-form [aria-invalid="true"], .newsletter [aria-invalid="true"] { border-bottom-color: #8f3022; }
 

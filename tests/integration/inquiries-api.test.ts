@@ -18,7 +18,7 @@ describe("public inquiry and subscription APIs", () => {
       d1Databases: ["DB"],
     });
     database = await miniflare.getD1Database("DB") as unknown as D1Database;
-    for (const name of ["0001_initial.sql", "0002_schema_normalization.sql", "0003_rate_limits.sql", "0004_submission_idempotency.sql"]) {
+    for (const name of ["0001_initial.sql", "0002_schema_normalization.sql", "0003_rate_limits.sql", "0004_submission_idempotency.sql", "0005_submission_idempotency_ledger.sql"]) {
       await applyMigration(database, await readFile(resolve(workspace, "migrations", name), "utf8"));
     }
     await database.prepare(`INSERT INTO categories (id, locale, name, slug, sort_order, status, created_at, updated_at)
@@ -84,14 +84,13 @@ describe("public inquiry and subscription APIs", () => {
     expect(await count("inquiries")).toBe(0);
   });
 
-  it("returns the original inquiry for a repeated idempotency key", async () => {
+  it("rejects a changed payload for a repeated inquiry idempotency key", async () => {
     const headers = { "idempotency-key": "a2c2b4ec-4f35-42d5-8804-111111111111" };
     const first = await createInquiry({ request: jsonRequest("/api/inquiries", productInquiry(), headers), locals: locals(database) } as never);
     const second = await createInquiry({ request: jsonRequest("/api/inquiries", { ...productInquiry(), message: "A replayed request" }, headers), locals: locals(database) } as never);
 
     expect(first.status).toBe(201);
-    expect(second.status).toBe(200);
-    expect((await first.json() as { data: { id: string } }).data.id).toBe((await second.json() as { data: { id: string } }).data.id);
+    expect(second.status).toBe(409);
     expect(await count("inquiries")).toBe(1);
   });
 

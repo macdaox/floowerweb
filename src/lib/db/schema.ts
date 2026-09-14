@@ -325,3 +325,20 @@ export const rateLimits = sqliteTable(
     check("rate_limits_count_check", sql`${table.count} >= 0`),
   ],
 );
+
+export const submissionIdempotencyKeys = sqliteTable(
+  "submission_idempotency_keys",
+  {
+    key: text("key").primaryKey(),
+    submissionType: text("submission_type", { enum: ["inquiry", "subscriber"] as const }).notNull(),
+    payloadHash: text("payload_hash").notNull(),
+    inquiryId: text("inquiry_id").references(() => inquiries.id),
+    subscriberId: text("subscriber_id").references(() => subscribers.id),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    index("submission_idempotency_inquiry_idx").on(table.inquiryId),
+    index("submission_idempotency_subscriber_idx").on(table.subscriberId),
+    check("submission_idempotency_type_check", sql`${table.submissionType} in ('inquiry', 'subscriber')`),
+  ],
+);

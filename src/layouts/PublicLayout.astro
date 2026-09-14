@@ -18,6 +18,7 @@ export interface Props {
 const { title, description, canonical, socialImage, theme = "transparent", companyName, tagline, social } = Astro.props;
 const canonicalUrl = canonical ? new URL(canonical, Astro.url) : Astro.url;
 const socialImageUrl = socialImage ? new URL(socialImage, Astro.url) : undefined;
+const submitted = Astro.url.searchParams.get("submitted");
 ---
 
 <!doctype html>
@@ -39,7 +40,7 @@ const socialImageUrl = socialImage ? new URL(socialImage, Astro.url) : undefined
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <Header theme={theme} />
-    <main id="main"><slot /></main>
+    <main id="main">{submitted && <p class="submission-notice" role="status">{submitted === "subscriber" ? "You’re subscribed. Thank you." : "Thank you. Your enquiry has been received."}</p>}<slot /></main>
     <Footer companyName={companyName} tagline={tagline} social={social} />
     <script>
       import { initializeInquiryForms } from "../components/public/InquiryForm";
