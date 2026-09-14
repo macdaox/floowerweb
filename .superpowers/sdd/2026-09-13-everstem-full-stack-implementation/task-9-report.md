@@ -89,3 +89,16 @@ Regression suites also passed in this worktree:
 - Authenticated admin Playwright suite — 6/6 passed twice with fresh ephemeral environment passwords, proving the fixture reset also clears its deterministic local login-rate-limit counter.
 - `npm run typecheck` — 0 errors and 0 warnings (two existing informational hints).
 - `npm run build` and `git diff --check` — passed.
+
+## Fix round 2
+
+- Added one role-neutral dashboard status target to the shell, present for administrators, sales users, and editors. A failed or malformed dashboard response now exposes the Chinese alert `无法加载仪表盘数据，请重试。` and a `重新加载` control; retry clears that state before requesting fresh data and success removes it.
+- Sales dashboards use this shared alert instead of a second DataTable error. The inquiry table continues to use its normal loading/data states, so a sales failure produces exactly one visible error.
+- Added authenticated browser coverage for editor failure → visible alert and retry → content metric success, plus the sales one-error regression assertion.
+
+### Fix-round verification
+
+- `E2E_ADMIN_PASSWORD="$(openssl rand -hex 24)" npm run test:e2e -- tests/e2e/admin-auth.spec.ts` — 7/7 passed with an ephemeral environment password.
+- `npm test -- --run tests/integration/admin-dashboard.test.ts tests/unit/admin-nav.test.ts` — 2 files / 5 tests passed.
+- `npm run typecheck` — 0 errors and 0 warnings (two existing informational hints).
+- `npm run build` and `git diff --check` — passed.

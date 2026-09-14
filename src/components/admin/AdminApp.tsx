@@ -20,15 +20,41 @@ export function initializeAdminApp(): void {
 async function loadDashboard(root: HTMLElement): Promise<void> {
   const tableElement = root.querySelector<HTMLElement>("[data-recent-inquiries]");
   const table = tableElement ? inquiryTable(tableElement) : undefined;
+  clearDashboardStatus(root);
   try {
     const response = await fetch("/api/admin/dashboard", { headers: { accept: "application/json" } });
     const payload = await response.json() as ApiResponse;
     if (!response.ok || !payload.ok || payload.data.kind !== root.dataset.dashboardKind) throw new Error("Unable to load dashboard.");
     renderMetrics(root, payload.data.metrics);
     if (payload.data.kind === "sales" && table) table.setState({ status: "data", rows: payload.data.recentInquiries });
+    clearDashboardStatus(root);
   } catch {
-    table?.setState({ status: "error", message: "无法加载最近询盘。", retry: () => void loadDashboard(root) });
+    showDashboardError(root);
   }
+}
+
+function clearDashboardStatus(root: HTMLElement): void {
+  const status = root.querySelector<HTMLElement>("[data-dashboard-status]");
+  const message = root.querySelector<HTMLElement>("[data-dashboard-status-message]");
+  const retry = root.querySelector<HTMLButtonElement>("[data-dashboard-retry]");
+  if (!status || !message || !retry) return;
+  status.hidden = true;
+  message.textContent = "";
+  message.removeAttribute("role");
+  retry.hidden = true;
+  retry.onclick = null;
+}
+
+function showDashboardError(root: HTMLElement): void {
+  const status = root.querySelector<HTMLElement>("[data-dashboard-status]");
+  const message = root.querySelector<HTMLElement>("[data-dashboard-status-message]");
+  const retry = root.querySelector<HTMLButtonElement>("[data-dashboard-retry]");
+  if (!status || !message || !retry) return;
+  status.hidden = false;
+  message.textContent = "无法加载仪表盘数据，请重试。";
+  message.setAttribute("role", "alert");
+  retry.hidden = false;
+  retry.onclick = () => { void loadDashboard(root); };
 }
 
 function inquiryTable(container: HTMLElement): DataTableController<RecentInquiry> {

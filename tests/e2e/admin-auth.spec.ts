@@ -99,7 +99,7 @@ test("keeps the table search control through Chinese IME, filters, paginates, an
   await expect(page.getByText("暂无询盘。")).toBeVisible();
 });
 
-test("renders the table error state and retries through the same table contract", async ({ page }) => {
+test("shows one dashboard error for sales users and retries without a table error", async ({ page }) => {
   let calls = 0;
   await page.route("**/api/admin/dashboard", async (route) => {
     calls += 1;
@@ -108,9 +108,29 @@ test("renders the table error state and retries through the same table contract"
   });
   await page.goto("/admin/login");
   await loginAs(page, accounts.admin);
-  await expect(page.getByRole("alert")).toContainText("无法加载最近询盘。");
-  await page.getByRole("button", { name: "重试" }).click();
+  await expect(page.getByRole("alert")).toContainText("无法加载仪表盘数据，请重试。");
+  await expect(page.locator("[data-recent-inquiries] [role=alert]")).toHaveCount(0);
+  await page.getByRole("button", { name: "重新加载" }).click();
   await expect(page.getByText("张一")).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
+test("shows an editor dashboard error and retries to load content metrics", async ({ page }) => {
+  let calls = 0;
+  await page.route("**/api/admin/dashboard", async (route) => {
+    calls += 1;
+    if (calls === 1) await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false }) });
+    else await fulfillDashboard(route, contentData());
+  });
+  await page.goto("/admin/login");
+  await loginAs(page, accounts.editor);
+
+  await expect(page.getByRole("alert")).toContainText("无法加载仪表盘数据，请重试。");
+  await expect(page.getByRole("button", { name: "重新加载" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "最近询盘" })).toHaveCount(0);
+  await page.getByRole("button", { name: "重新加载" }).click();
+  await expect(page.locator("[data-dashboard-metric=draftProducts]")).toHaveText("3");
+  await expect(page.getByRole("alert")).toHaveCount(0);
 });
 
 async function loginAs(page: Page, email: string): Promise<void> {
@@ -121,7 +141,7 @@ async function loginAs(page: Page, email: string): Promise<void> {
   await page.getByRole("button", { name: "登录" }).click();
 }
 
-async function fulfillDashboard(route: Route, data: ReturnType<typeof salesData>): Promise<void> {
+async function fulfillDashboard(route: Route, data: ReturnType<typeof salesData> | ReturnType<typeof contentData>): Promise<void> {
   await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, data }) });
 }
 
@@ -132,6 +152,13 @@ function salesData() {
     recentInquiries: [
       inquiry("张一", "new"), inquiry("李二", "contacted"), inquiry("王三", "new"), inquiry("赵四", "qualified"), inquiry("周五", "closed"), inquiry("<img src=x>", "new"),
     ],
+  };
+}
+
+function contentData() {
+  return {
+    kind: "content" as const,
+    metrics: { draftProducts: 3, publishedProducts: 4, draftSpaces: 5, draftArticles: 6 },
   };
 }
 

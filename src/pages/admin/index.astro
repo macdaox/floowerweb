@@ -12,6 +12,10 @@ const isContentDashboard = user.role === "editor";
       <div><p class="admin-kicker">概览</p><h1 id="dashboard-title">仪表盘</h1></div>
       <p>欢迎回来，{user.displayName}。</p>
     </header>
+    <div class="dashboard-status" data-dashboard-status aria-live="polite" hidden>
+      <p data-dashboard-status-message></p>
+      <button type="button" data-dashboard-retry hidden>重新加载</button>
+    </div>
     {isContentDashboard ? <>
       <section class="dashboard-metrics" aria-label="内容指标">
         <article><p>草稿产品</p><strong data-dashboard-metric="draftProducts">—</strong></article>
