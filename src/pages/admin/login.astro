@@ -1,0 +1,51 @@
+---
+import "../../styles/global.css";
+import "../../styles/admin.css";
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#332d27" />
+    <title>登录 · EVERSTEM 管理后台</title>
+  </head>
+  <body class="admin-login-body">
+    <main class="admin-login-main">
+      <a class="admin-login-wordmark" href="/">EVERSTEM</a>
+      <section class="admin-login-card" aria-labelledby="login-title">
+        <p class="admin-kicker">管理后台</p>
+        <h1 id="login-title">欢迎回来</h1>
+        <p>使用您的工作账号登录。</p>
+        <form class="admin-login-form" data-admin-login aria-busy="false">
+          <label>邮箱地址 <input name="email" type="email" autocomplete="email" required /></label>
+          <label>密码 <input name="password" type="password" autocomplete="current-password" required /></label>
+          <button class="admin-primary-button" type="submit">登录</button>
+          <p role="alert" data-login-error></p>
+        </form>
+      </section>
+    </main>
+    <script>
+      const form = document.querySelector<HTMLFormElement>("[data-admin-login]");
+      form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const button = form.querySelector<HTMLButtonElement>("button[type=submit]");
+        const error = form.querySelector<HTMLElement>("[data-login-error]");
+        if (button) button.disabled = true;
+        form.setAttribute("aria-busy", "true");
+        if (error) error.textContent = "";
+        try {
+          const response = await fetch("/api/auth/login", { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+          if (!response.ok) throw new Error();
+          window.location.assign("/admin");
+        } catch {
+          if (error) error.textContent = "邮箱或密码不正确，请重试。";
+        } finally {
+          if (button) button.disabled = false;
+          form.setAttribute("aria-busy", "false");
+        }
+      });
+    </script>
+  </body>
+</html>

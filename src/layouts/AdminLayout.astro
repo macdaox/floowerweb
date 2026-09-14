@@ -1,0 +1,57 @@
+---
+import type { AuthUser } from "../features/auth/authorize";
+import { adminNavigation } from "../components/admin/AdminNav";
+import "../styles/global.css";
+import "../styles/admin.css";
+
+export interface Props {
+  title: string;
+  user: AuthUser;
+}
+
+const { title, user } = Astro.props;
+const navigation = adminNavigation(user.role);
+const pathname = Astro.url.pathname;
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#332d27" />
+    <title>{title} · EVERSTEM 管理后台</title>
+  </head>
+  <body class="admin-body">
+    <a class="skip-link" href="#admin-main">跳至主要内容</a>
+    <div class="admin-shell">
+      <aside class="admin-sidebar" aria-label="管理导航">
+        <a class="admin-wordmark" href="/admin" aria-label="EVERSTEM 管理后台">EVERSTEM <span>管理后台</span></a>
+        <nav id="admin-navigation" class="admin-nav" data-admin-navigation aria-label="管理导航">
+          {navigation.map((item) => <a href={item.href} aria-current={pathname === item.href ? "page" : undefined}>{item.label}</a>)}
+        </nav>
+      </aside>
+      <div class="admin-workspace">
+        <header class="admin-header">
+          <button class="admin-menu-button" type="button" data-admin-menu-button aria-expanded="false" aria-controls="admin-navigation">菜单</button>
+          <a class="admin-wordmark admin-wordmark--mobile" href="/admin">EVERSTEM</a>
+          <div class="admin-user-menu" data-user-menu-wrap>
+            <button type="button" data-user-menu-button aria-expanded="false" aria-controls="admin-user-menu" aria-label="账户菜单">{user.displayName}<span aria-hidden="true">⌄</span></button>
+            <div id="admin-user-menu" data-user-menu hidden>
+              <p>{user.email}</p>
+              <p class="admin-role">{user.role === "admin" ? "管理员" : user.role === "editor" ? "内容编辑" : "销售"}</p>
+              <button type="button" data-admin-logout>退出登录</button>
+            </div>
+          </div>
+        </header>
+        <main id="admin-main" class="admin-main"><slot /></main>
+      </div>
+    </div>
+    <p class="visually-hidden" aria-live="polite" data-admin-status></p>
+    <script>
+      import { initializeAdminApp } from "../components/admin/AdminApp";
+      initializeAdminApp();
+      document.addEventListener("astro:page-load", initializeAdminApp);
+    </script>
+  </body>
+</html>

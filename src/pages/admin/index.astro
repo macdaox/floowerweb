@@ -1,0 +1,25 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { requireRole } from "../../features/auth/authorize";
+
+const user = requireRole(Astro.locals, ["admin", "editor", "sales"]);
+---
+
+<AdminLayout title="仪表盘" user={user}>
+  <section class="dashboard" data-admin-dashboard aria-labelledby="dashboard-title">
+    <header class="dashboard__heading">
+      <div><p class="admin-kicker">概览</p><h1 id="dashboard-title" aria-label="Dashboard">仪表盘</h1></div>
+      <p>欢迎回来，{user.displayName}。</p>
+    </header>
+    <section class="dashboard-metrics" aria-label="关键指标">
+      <article><p>新询盘 <span class="visually-hidden">New inquiries</span></p><strong data-dashboard-metric>—</strong></article>
+      <article><p>本周收到</p><strong data-dashboard-metric>—</strong></article>
+      <article><p>有效订阅者</p><strong data-dashboard-metric>—</strong></article>
+      <article><p>已发布产品</p><strong data-dashboard-metric>—</strong></article>
+    </section>
+    <section class="dashboard-panel" aria-labelledby="recent-inquiries-title">
+      <div class="dashboard-panel__heading"><div><p class="admin-kicker">销售</p><h2 id="recent-inquiries-title">最近询盘</h2></div><a href="/admin/inquiries">查看全部</a></div>
+      <div data-recent-inquiries><p class="data-table__loading" role="status">正在加载最近询盘…</p></div>
+    </section>
+  </section>
+</AdminLayout>
