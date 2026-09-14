@@ -12,6 +12,7 @@ import {
   settings,
   spaceImages,
   spaces,
+  submissionIdempotencyKeys,
   users,
 } from "../../src/lib/db/schema";
 
@@ -25,6 +26,10 @@ describe("Drizzle schema declarations", () => {
     expect(checkNames(spaces)).toContain("spaces_status_check");
     expect(checkNames(articles)).toContain("articles_status_check");
     expect(checkNames(pages)).toContain("pages_status_check");
+    expect(checkNames(submissionIdempotencyKeys)).toEqual(expect.arrayContaining([
+      "submission_idempotency_type_check",
+      "submission_idempotency_reference_check",
+    ]));
 
     expect(uniqueNames(productImages)).toContain("product_images_product_media_unique");
     expect(uniqueNames(spaceImages)).toContain("space_images_space_media_unique");

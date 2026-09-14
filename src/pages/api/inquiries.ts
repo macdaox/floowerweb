@@ -13,10 +13,9 @@ const LIMIT = 5;
 const WINDOW_SECONDS = 60 * 60;
 
 export const POST: APIRoute = async ({ request, locals }) => {
-  let native = false;
+  const native = isNativeForm(request);
   try {
     assertAllowedOrigin(request, new URL(request.url).origin);
-    native = isNativeForm(request);
     const body = native ? inquiryFormInput(await parseForm(request, 8_192), request) : await parseJson<unknown>(request, 8_192);
     if (isHoneypotSubmission(body)) return new Response(null, { status: 204 });
     const input = parseInquiryInput(body);
@@ -31,7 +30,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       if (existing) throw new HttpError("idempotency_conflict", "This idempotency key was already used for a different submission.", 409);
     }
     if (!await consumeRateLimit(createDb(db), `inquiries:${clientIp(request)}`, LIMIT, WINDOW_SECONDS)) {
-      return fail("too_many_requests", "Too many enquiries. Please try again later.", 429);
+      return errorResponse(new HttpError("too_many_requests", "Too many enquiries. Please try again later.", 429), native);
     }
     const inquiry = await createInquiry(db, input, { idempotencyKey, payloadHash });
     return responseFor(request, native, input.sourceRoute, "inquiry", ok(inquiry, 201));

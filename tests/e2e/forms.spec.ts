@@ -12,6 +12,7 @@ test("every public inquiry form is configured for accessible submission", async 
     await expect(form).toHaveAttribute("data-inquiry-form", "");
     await expect(form.getByRole("button")).toHaveAttribute("type", "submit");
     await expect(form.locator("[role=status]")).toHaveAttribute("aria-live", "polite");
+    await expect(form.getByLabel("Name")).toHaveAttribute("minlength", "2");
   }
 });
 
@@ -37,6 +38,8 @@ test("catalog form reports field errors and a success result without leaving the
   }
   await expect(form.getByText("Enter a valid email address.")).toBeVisible();
   await expect(form.getByText("Enter your name.")).toHaveAttribute("role", "alert");
+  await expect(form.getByText("Choose at least one product interest.")).toBeVisible();
+  await expect(form.getByLabel("Product interest")).toHaveAttribute("aria-describedby", "catalog-interest-error");
 
   await page.unroute("**/api/inquiries");
   await page.route("**/api/inquiries", async (route) => {
@@ -57,6 +60,13 @@ test("newsletter subscription exposes its success state", async ({ page }) => {
 
   await form.getByRole("button", { name: /subscribe/i }).click();
   await expect(form.getByRole("status")).toContainText(/subscribed/i);
+});
+
+test("the native newsletter destination resolves to the footer", async ({ page }) => {
+  await page.goto("/?submitted=subscriber#footer");
+  await expect(page).toHaveURL(/\/?submitted=subscriber#footer$/);
+  await expect(page.getByRole("status").first()).toContainText(/subscribed/i);
+  await expect(page.locator("#footer")).toContainText(/notes from everstem/i);
 });
 
 test("a retry keeps its idempotency key and preserves entered values until success", async ({ page }) => {
@@ -97,6 +107,12 @@ test("public forms expose server-aligned field constraints and newsletter error 
   await expect(contact.getByLabel("Company")).toHaveAttribute("maxlength", "120");
   await expect(contact.getByLabel("Phone")).toHaveAttribute("maxlength", "60");
   await expect(contact.getByLabel("How can we help?")).toHaveAttribute("maxlength", "2000");
+  await expect(contact.getByLabel("Name")).toHaveAttribute("minlength", "2");
+
+  await page.goto("/");
+  const catalog = page.getByRole("form", { name: /partner with everstem/i });
+  await expect(catalog.getByLabel("Name")).toHaveAttribute("minlength", "2");
+  await expect(catalog.getByLabel("Product interest")).toHaveAttribute("aria-describedby", "catalog-interest-error");
 
   const newsletter = page.getByRole("form", { name: /notes from everstem/i });
   await expect(newsletter.getByLabel("Email address")).toHaveAttribute("aria-describedby", "newsletter-email-error");

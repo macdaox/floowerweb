@@ -68,7 +68,7 @@ function renderErrors(form: HTMLFormElement, fields: Record<string, string> | un
     const name = fieldNames[key] ?? key;
     const field = form.querySelector(`[name="${name}"]`) as unknown as { setAttribute(name: string, value: string): void } | null;
     field?.setAttribute("aria-invalid", "true");
-    const error = form.querySelector<HTMLElement>(`[data-field-error="${name}"]`);
+    const error = form.querySelector<HTMLElement>(`[data-field-error="${name}"], [data-field-error="${key}"]`);
     if (error) error.textContent = message;
   }
 }

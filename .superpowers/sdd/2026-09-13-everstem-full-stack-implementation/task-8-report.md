@@ -15,6 +15,27 @@ Implemented public inquiry and newsletter persistence without any mail-provider 
 - `npm test -- --run` — 15 files, 54 tests passed.
 - `npm run typecheck` — 0 errors.
 - `npm run build` — passed.
+
+## Fix round 2 — 2026-09-14
+
+- Native newsletter success now redirects to the valid homepage footer target `/?submitted=subscriber#footer`; the footer stores `/` for no-JavaScript fallback while enhanced submissions retain the current page path as their source.
+- Native form detection now happens before origin checks, and both endpoint rate-limit branches use the native HTML error response. Native validation, origin, body parsing, and rate-limit failures no longer fall through to JSON.
+- Inquiry interest errors now resolve either the transport key (`interests`) or the visible input key (`product_interest`), so the rendered text is connected to the existing `aria-describedby` target. Every visible inquiry name input now declares `minlength="2"` to match the server schema.
+- Drizzle now mirrors the migration's type-specific inquiry/subscriber reference-pairing check. Route and schema tests prove the D1 constraint and the declaration both remain present.
+- Expanded real D1 coverage covers multipart forms, native error HTML, subscriber origin/body limits/rate limiting, fresh and existing subscriber idempotency, cross-type key conflicts, replay-before-rate-limit, no-network persistence, and keyed batch rollback including the ledger row. Browser coverage proves the native destination resolves and product-interest errors visibly render.
+
+Observed regression evidence before the fixes:
+
+- The native newsletter route expectation exposed `https://everstem.test/footer?submitted=subscriber`, which is not a site route; the native validation/rate-limit test observed `application/json` instead of `text/html`.
+- The Drizzle declaration test was missing `submission_idempotency_reference_check`.
+
+Final verification:
+
+- `npm test -- --run tests/integration/inquiries-hardening.test.ts tests/unit/schema-declarations.test.ts tests/integration/schema.test.ts` — 23 tests passed.
+- `npm test -- --run` — 16 files, 70 tests passed.
+- `npm run test:e2e` — 15 browser tests passed.
+- `npm run typecheck` — 0 errors, 0 warnings (2 existing hints).
+- `npm run build` — passed.
 - `npm run test:e2e` — 12 browser tests passed.
 
 During verification, the local preview D1 was migrated through `0004` and reseeded so its pre-existing stale page content matched the repository's validated seed format.

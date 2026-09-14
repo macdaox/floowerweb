@@ -49,6 +49,21 @@ migrations_dir = "${resolve(workspace, "migrations")}"\n`,
     expect(migrations).toEqual(["0001_initial.sql", "0002_schema_normalization.sql", "0003_rate_limits.sql", "0004_submission_idempotency.sql", "0005_submission_idempotency_ledger.sql"]);
   });
 
+  it("enforces the idempotency ledger's type-specific reference pairing", () => {
+    const now = "2026-09-14T00:00:00.000Z";
+    execute(`INSERT INTO inquiries (id, inquiry_type, name, email, status, created_at, updated_at)
+      VALUES ('idempotency-inquiry', 'contact', 'Ada Buyer', 'ada-idempotency@example.com', 'new', '${now}', '${now}');
+      INSERT INTO subscribers (id, email, source, status, subscribed_at, created_at, updated_at)
+      VALUES ('idempotency-subscriber', 'subscriber-idempotency@example.com', '/', 'subscribed', '${now}', '${now}', '${now}')`);
+
+    expect(() => execute(`INSERT INTO submission_idempotency_keys (key, submission_type, payload_hash, created_at)
+      VALUES ('missing-reference', 'inquiry', 'hash', '${now}')`)).toThrow(/CHECK constraint failed/);
+    expect(() => execute(`INSERT INTO submission_idempotency_keys (key, submission_type, payload_hash, inquiry_id, created_at)
+      VALUES ('wrong-reference', 'subscriber', 'hash', 'idempotency-inquiry', '${now}')`)).toThrow(/CHECK constraint failed/);
+    expect(() => execute(`INSERT INTO submission_idempotency_keys (key, submission_type, payload_hash, inquiry_id, created_at)
+      VALUES ('valid-inquiry-reference', 'inquiry', 'hash', 'idempotency-inquiry', '${now}')`)).not.toThrow();
+  });
+
   it("enforces localized slugs, product codes, gallery uniqueness, and foreign keys", () => {
     const now = "2026-09-13T00:00:00.000Z";
     execute(`INSERT INTO categories (id, locale, name, slug, sort_order, status, created_at, updated_at)

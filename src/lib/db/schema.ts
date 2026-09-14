@@ -340,5 +340,9 @@ export const submissionIdempotencyKeys = sqliteTable(
     index("submission_idempotency_inquiry_idx").on(table.inquiryId),
     index("submission_idempotency_subscriber_idx").on(table.subscriberId),
     check("submission_idempotency_type_check", sql`${table.submissionType} in ('inquiry', 'subscriber')`),
+    check("submission_idempotency_reference_check", sql`(
+      (${table.submissionType} = 'inquiry' AND ${table.inquiryId} IS NOT NULL AND ${table.subscriberId} IS NULL) OR
+      (${table.submissionType} = 'subscriber' AND ${table.inquiryId} IS NULL AND ${table.subscriberId} IS NOT NULL)
+    )`),
   ],
 );

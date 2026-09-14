@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Miniflare } from "miniflare";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createInquiry as createInquiryService } from "../../src/features/inquiries/service";
+import { createInquiry as createInquiryService, inquiryPayloadHash } from "../../src/features/inquiries/service";
 import { parseInquiryInput } from "../../src/features/inquiries/schemas";
 import { POST as inquiries } from "../../src/pages/api/inquiries";
 import { POST as subscribers } from "../../src/pages/api/subscribers";
@@ -46,13 +46,51 @@ describe("hardened public submission routes", () => {
 
   it("accepts native newsletter form posts and redirects back with a success marker", async () => {
     const response = await subscribers({
-      request: formRequest("/api/subscribers", { email: "news@example.com", source: "/footer", website: "" }),
+      request: formRequest("/api/subscribers", { email: "news@example.com", source: "/", website: "" }),
       locals: locals(database),
     } as never);
 
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe("https://everstem.test/footer?submitted=subscriber");
+    expect(response.headers.get("location")).toBe("https://everstem.test/?submitted=subscriber#footer");
     expect(await count("subscribers")).toBe(1);
+  });
+
+  it("accepts multipart native inquiry posts", async () => {
+    const response = await inquiries({
+      request: multipartRequest("/api/inquiries", { inquiry_type: "contact", name: "Ada Lovelace", email: "ada@example.com", source_route: "/contact", website: "" }),
+      locals: locals(database),
+    } as never);
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("https://everstem.test/contact?submitted=inquiry");
+    expect(await count("inquiries")).toBe(1);
+  });
+
+  it("returns useful HTML for native validation and rate-limit failures", async () => {
+    const invalidInquiry = await inquiries({ request: formRequest("/api/inquiries", { inquiry_type: "contact", name: "A", email: "bad", source_route: "/contact", website: "" }), locals: locals(database) } as never);
+    const invalidSubscriber = await subscribers({ request: formRequest("/api/subscribers", { email: "bad", source: "/", website: "" }), locals: locals(database) } as never);
+    expect(invalidInquiry.status).toBe(422);
+    expect(invalidSubscriber.status).toBe(422);
+    expect(invalidInquiry.headers.get("content-type")).toContain("text/html");
+    expect(invalidSubscriber.headers.get("content-type")).toContain("text/html");
+    await expect(invalidInquiry.text()).resolves.toContain("We could not send your enquiry.");
+    await expect(invalidSubscriber.text()).resolves.toContain("We could not subscribe you.");
+
+    for (let index = 0; index < 5; index += 1) {
+      const response = await inquiries({ request: formRequest("/api/inquiries", { inquiry_type: "contact", name: "Ada", email: `buyer-${index}@example.com`, source_route: "/contact", website: "" }), locals: locals(database) } as never);
+      expect(response.status).toBe(303);
+    }
+    for (let index = 0; index < 10; index += 1) {
+      const response = await subscribers({ request: formRequest("/api/subscribers", { email: `news-${index}@example.com`, source: "/", website: "" }), locals: locals(database) } as never);
+      expect(response.status).toBe(303);
+    }
+
+    const limitedInquiry = await inquiries({ request: formRequest("/api/inquiries", { inquiry_type: "contact", name: "Ada", email: "limited@example.com", source_route: "/contact", website: "" }), locals: locals(database) } as never);
+    const limitedSubscriber = await subscribers({ request: formRequest("/api/subscribers", { email: "limited@example.com", source: "/", website: "" }), locals: locals(database) } as never);
+    expect(limitedInquiry.status).toBe(429);
+    expect(limitedSubscriber.status).toBe(429);
+    expect(limitedInquiry.headers.get("content-type")).toContain("text/html");
+    expect(limitedSubscriber.headers.get("content-type")).toContain("text/html");
   });
 
   it("rejects cross-origin and oversized inquiry requests before persistence", async () => {
@@ -62,6 +100,15 @@ describe("hardened public submission routes", () => {
     expect(crossOrigin.status).toBe(403);
     expect(oversized.status).toBe(413);
     expect(await count("inquiries")).toBe(0);
+  });
+
+  it("rejects cross-origin and oversized subscriber requests before persistence", async () => {
+    const crossOrigin = await subscribers({ request: jsonRequest("/api/subscribers", { email: "news@example.com", source: "/" }, { origin: "https://evil.test" }), locals: locals(database) } as never);
+    const oversized = await subscribers({ request: jsonRequest("/api/subscribers", { email: "news@example.com", source: "/", website: "x".repeat(3_000) }), locals: locals(database) } as never);
+
+    expect(crossOrigin.status).toBe(403);
+    expect(oversized.status).toBe(413);
+    expect(await count("subscribers")).toBe(0);
   });
 
   it("rate limits distinct submissions but lets an exact replay bypass the quota", async () => {
@@ -118,9 +165,11 @@ describe("hardened public submission routes", () => {
 
   it("rolls back the inquiry if its interest rows cannot be created", async () => {
     await database.exec(`CREATE TRIGGER reject_inquiry_interest BEFORE INSERT ON inquiry_interests BEGIN SELECT RAISE(ABORT, 'forced child failure'); END`);
+    const input = parseInquiryInput({ ...productInquiry(), interests: ["Flowers"] });
 
-    await expect(createInquiryService(database, parseInquiryInput({ ...productInquiry(), interests: ["Flowers"] }))).rejects.toThrow(/forced child failure/i);
+    await expect(createInquiryService(database, input, { idempotencyKey, payloadHash: await inquiryPayloadHash(input) })).rejects.toThrow(/forced child failure/i);
     expect(await count("inquiries")).toBe(0);
+    expect(await count("submission_idempotency_keys")).toBe(0);
   });
 
   it("quietly accepts both honeypots without persistence", async () => {
@@ -144,18 +193,40 @@ describe("hardened public submission routes", () => {
     expect(conflict.status).toBe(409);
   });
 
+  it("replays a fresh keyed subscriber, rejects a cross-type key, and bypasses its rate limit", async () => {
+    const fresh = await subscribers({ request: jsonRequest("/api/subscribers", { email: "fresh@example.com", source: "/" }, { "idempotency-key": idempotencyKey }), locals: locals(database) } as never);
+    const replay = await subscribers({ request: jsonRequest("/api/subscribers", { email: "fresh@example.com", source: "/" }, { "idempotency-key": idempotencyKey }), locals: locals(database) } as never);
+    expect(fresh.status).toBe(201);
+    expect(replay.status).toBe(200);
+    expect(await count("subscribers")).toBe(1);
+
+    const crossType = await inquiries({ request: jsonRequest("/api/inquiries", productInquiry(), { "idempotency-key": idempotencyKey }), locals: locals(database) } as never);
+    expect(crossType.status).toBe(409);
+
+    for (let index = 0; index < 9; index += 1) {
+      const response = await subscribers({ request: jsonRequest("/api/subscribers", { email: `quota-${index}@example.com`, source: "/" }), locals: locals(database) } as never);
+      expect(response.status).toBe(201);
+    }
+    const quotaReplay = await subscribers({ request: jsonRequest("/api/subscribers", { email: "fresh@example.com", source: "/" }, { "idempotency-key": idempotencyKey }), locals: locals(database) } as never);
+    const limited = await subscribers({ request: jsonRequest("/api/subscribers", { email: "over-quota@example.com", source: "/" }), locals: locals(database) } as never);
+    expect(quotaReplay.status).toBe(200);
+    expect(limited.status).toBe(429);
+  });
+
   it("persists without invoking an outbound mail or network dependency", async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (() => { throw new Error("outbound network call"); }) as typeof fetch;
     try {
       const response = await inquiries({ request: jsonRequest("/api/inquiries", productInquiry()), locals: locals(database) } as never);
       expect(response.status).toBe(201);
+      const subscriber = await subscribers({ request: jsonRequest("/api/subscribers", { email: "news@example.com", source: "/" }), locals: locals(database) } as never);
+      expect(subscriber.status).toBe(201);
     } finally {
       globalThis.fetch = originalFetch;
     }
   });
 
-  async function count(table: "inquiries" | "subscribers"): Promise<number> {
+  async function count(table: "inquiries" | "subscribers" | "submission_idempotency_keys"): Promise<number> {
     return (await database.prepare(`SELECT COUNT(*) AS count FROM ${table}`).first<{ count: number }>())?.count ?? 0;
   }
 });
@@ -172,6 +243,12 @@ function jsonRequest(path: string, body: object, headers: Record<string, string>
 
 function formRequest(path: string, fields: Record<string, string>): Request {
   return new Request(`https://everstem.test${path}`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", origin: "https://everstem.test", "cf-connecting-ip": "198.51.100.90", accept: "text/html" }, body: new URLSearchParams(fields) });
+}
+
+function multipartRequest(path: string, fields: Record<string, string>): Request {
+  const body = new FormData();
+  for (const [key, value] of Object.entries(fields)) body.set(key, value);
+  return new Request(`https://everstem.test${path}`, { method: "POST", headers: { origin: "https://everstem.test", "cf-connecting-ip": "198.51.100.90", accept: "text/html" }, body });
 }
 
 function now() { return "2026-09-14T00:00:00.000Z"; }

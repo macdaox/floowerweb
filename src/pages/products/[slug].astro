@@ -32,7 +32,7 @@ const inquiry = productInquiryFields(product.id, product.name, Astro.url.pathnam
           <input type="hidden" name="product_name" value={inquiry.productName} />
           <input type="hidden" name="source_route" value={inquiry.sourceRoute} />
           <h2>Request product information</h2>
-          <label for="inquiry-name">Name<input id="inquiry-name" name="name" autocomplete="name" required maxlength="120" aria-describedby="inquiry-name-error" /></label><p class="form-error" id="inquiry-name-error" data-field-error="name" role="alert"></p>
+          <label for="inquiry-name">Name<input id="inquiry-name" name="name" autocomplete="name" required minlength="2" maxlength="120" aria-describedby="inquiry-name-error" /></label><p class="form-error" id="inquiry-name-error" data-field-error="name" role="alert"></p>
           <label for="inquiry-email">Business email<input id="inquiry-email" name="email" type="email" autocomplete="email" required maxlength="254" aria-describedby="inquiry-email-error" /></label><p class="form-error" id="inquiry-email-error" data-field-error="email" role="alert"></p>
           <label for="inquiry-message">What are you sourcing?<textarea id="inquiry-message" name="message" rows="3" maxlength="2000" aria-describedby="inquiry-message-error"></textarea></label><p class="form-error" id="inquiry-message-error" data-field-error="message" role="alert"></p><p class="form-error" data-field-error="product_id" role="alert"></p>
           <div class="visually-hidden" aria-hidden="true"><label for="inquiry-website">Website</label><input id="inquiry-website" name="website" type="text" tabindex="-1" autocomplete="off" /></div>
