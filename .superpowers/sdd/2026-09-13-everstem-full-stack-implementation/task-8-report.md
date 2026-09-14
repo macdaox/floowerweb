@@ -16,6 +16,17 @@ Implemented public inquiry and newsletter persistence without any mail-provider 
 - `npm run typecheck` — 0 errors.
 - `npm run build` — passed.
 
+## Fix round 3 — 2026-09-14
+
+- Strengthened the atomic rollback evidence without changing production behavior. The test supplies an idempotency key and two interests, then uses a `BEFORE INSERT` trigger on `submission_idempotency_keys` to fail the ledger statement, which is ordered after the parent inquiry and both interest inserts in the D1 batch.
+- The assertion now verifies that `inquiries`, `inquiry_interests`, and `submission_idempotency_keys` are all empty after the forced ledger failure. This proves rollback includes statements that had already succeeded earlier in the batch.
+- Removed the stale standalone “12 browser tests passed” line; the current authoritative browser evidence remains the round-two `15 browser tests passed` result.
+
+Verification:
+
+- `npm test -- --run tests/integration/inquiries-hardening.test.ts` — 15 tests passed, including the ledger-after-interests rollback case.
+- `npm test -- --run` — 16 files, 70 tests passed.
+
 ## Fix round 2 — 2026-09-14
 
 - Native newsletter success now redirects to the valid homepage footer target `/?submitted=subscriber#footer`; the footer stores `/` for no-JavaScript fallback while enhanced submissions retain the current page path as their source.
@@ -36,8 +47,6 @@ Final verification:
 - `npm run test:e2e` — 15 browser tests passed.
 - `npm run typecheck` — 0 errors, 0 warnings (2 existing hints).
 - `npm run build` — passed.
-- `npm run test:e2e` — 12 browser tests passed.
-
 During verification, the local preview D1 was migrated through `0004` and reseeded so its pre-existing stale page content matched the repository's validated seed format.
 
 ## Fix round 1 — 2026-09-14

@@ -163,12 +163,13 @@ describe("hardened public submission routes", () => {
       .toEqual([{ interest: "Branches" }, { interest: "Flowers" }]);
   });
 
-  it("rolls back the inquiry if its interest rows cannot be created", async () => {
-    await database.exec(`CREATE TRIGGER reject_inquiry_interest BEFORE INSERT ON inquiry_interests BEGIN SELECT RAISE(ABORT, 'forced child failure'); END`);
-    const input = parseInquiryInput({ ...productInquiry(), interests: ["Flowers"] });
+  it("rolls back the inquiry, written interests, and ledger when the ledger statement fails", async () => {
+    await database.exec(`CREATE TRIGGER reject_submission_key BEFORE INSERT ON submission_idempotency_keys BEGIN SELECT RAISE(ABORT, 'forced ledger failure'); END`);
+    const input = parseInquiryInput({ ...productInquiry(), interests: ["Flowers", "Branches"] });
 
-    await expect(createInquiryService(database, input, { idempotencyKey, payloadHash: await inquiryPayloadHash(input) })).rejects.toThrow(/forced child failure/i);
+    await expect(createInquiryService(database, input, { idempotencyKey, payloadHash: await inquiryPayloadHash(input) })).rejects.toThrow(/forced ledger failure/i);
     expect(await count("inquiries")).toBe(0);
+    expect(await count("inquiry_interests")).toBe(0);
     expect(await count("submission_idempotency_keys")).toBe(0);
   });
 
@@ -226,7 +227,7 @@ describe("hardened public submission routes", () => {
     }
   });
 
-  async function count(table: "inquiries" | "subscribers" | "submission_idempotency_keys"): Promise<number> {
+  async function count(table: "inquiries" | "inquiry_interests" | "subscribers" | "submission_idempotency_keys"): Promise<number> {
     return (await database.prepare(`SELECT COUNT(*) AS count FROM ${table}`).first<{ count: number }>())?.count ?? 0;
   }
 });
