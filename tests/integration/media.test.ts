@@ -7,7 +7,7 @@ import { GET as listMedia, POST as uploadRoute, PUT as saveGalleryRoute } from "
 import { GET as serveMedia } from "../../src/pages/media/[key]";
 import { deleteMedia, uploadMedia } from "../../src/features/media/service";
 import { getPublishedProductBySlug } from "../../src/features/catalog/service";
-import { getPublishedSpace } from "../../src/features/content/service";
+import { getPublishedSpace, listPublishedSpaces } from "../../src/features/content/service";
 
 const workspace = resolve(import.meta.dirname, "../..");
 const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
@@ -187,8 +187,24 @@ describe("R2 media management", () => {
     expect(rows.results).toEqual([{ media_id: first.id, sort_order: 0 }, { media_id: second.id, sort_order: 1 }]);
 
     await database.prepare("UPDATE spaces SET status = 'published' WHERE id = 'space-1'").run();
+    await database.batch([
+      database.prepare(`INSERT INTO spaces (id, locale, title, slug, category, summary, body, cover_media_id, status, created_at, updated_at)
+        VALUES ('space-related', 'en', 'Related lobby', 'related-lobby', 'Hospitality', 'Related summary', 'Related body', ?, 'published', ?, ?)`)
+        .bind(first.id, "2026-09-01T00:00:00.000Z", "2026-09-01T00:00:00.000Z"),
+      database.prepare(`INSERT INTO space_images (id, space_id, media_id, alt_text, sort_order, created_at)
+        VALUES ('space-related-cover', 'space-related', ?, 'Related lobby assigned cover', 0, ?)`)
+        .bind(first.id, "2026-09-01T00:00:00.000Z"),
+    ]);
+    const publicSpaces = await listPublishedSpaces(database, "en");
+    expect(publicSpaces).toEqual(expect.arrayContaining([
+      expect.objectContaining({ slug: "lobby", image: { src: `/media/${second.objectKey}`, alt: "Installation detail" } }),
+      expect.objectContaining({ slug: "related-lobby", image: { src: `/media/${first.objectKey}`, alt: "Related lobby assigned cover" } }),
+    ]));
     const publicSpace = await getPublishedSpace(database, "en", "lobby");
     expect(publicSpace?.images[0]).toEqual({ src: `/media/${second.objectKey}`, alt: "Installation detail" });
+    expect(publicSpace?.relatedSpaces).toEqual([
+      expect.objectContaining({ slug: "related-lobby", image: { src: `/media/${first.objectKey}`, alt: "Related lobby assigned cover" } }),
+    ]);
 
     await database.prepare("UPDATE spaces SET status = 'archived' WHERE id = 'space-1'").run();
     const archived = await saveGalleryRoute(routeContext(jsonRequest("https://everstem.test/api/admin/media", "PUT", {

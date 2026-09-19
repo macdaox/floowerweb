@@ -51,20 +51,30 @@ describe("public catalog reads", () => {
     await media("cover", "cover.jpg", "Magnolia cover");
     await media("detail", "detail.jpg", "Magnolia detail");
     await product("magnolia", "en", "magnolia-stem", "flowers-en", "published", "cover");
-    await product("related", "en", "related-stem", "flowers-en", "published");
-    await database.prepare(`INSERT INTO product_images (id, product_id, media_id, alt_text, sort_order, is_cover, created_at)
-      VALUES ('magnolia-detail', 'magnolia', 'detail', 'Petal close-up', 1, 0, ?)`)
-      .bind(now).run();
+    await product("related", "en", "related-stem", "flowers-en", "published", "cover");
+    await database.batch([
+      database.prepare(`INSERT INTO product_images (id, product_id, media_id, alt_text, sort_order, is_cover, created_at)
+        VALUES ('magnolia-cover', 'magnolia', 'cover', 'Assigned magnolia cover', 0, 1, ?)`).bind(now),
+      database.prepare(`INSERT INTO product_images (id, product_id, media_id, alt_text, sort_order, is_cover, created_at)
+        VALUES ('magnolia-detail', 'magnolia', 'detail', 'Petal close-up', 1, 0, ?)`).bind(now),
+      database.prepare(`INSERT INTO product_images (id, product_id, media_id, alt_text, sort_order, is_cover, created_at)
+        VALUES ('related-cover', 'related', 'cover', 'Related product assigned cover', 0, 1, ?)`).bind(now),
+    ]);
 
+    const productList = await listPublishedProducts(database, { locale: "en", page: 1 });
     const productDetail = await getPublishedProductBySlug(database, "en", "magnolia-stem");
 
+    expect(productList.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ slug: "magnolia-stem", image: { src: "/assets/cover.jpg", alt: "Assigned magnolia cover" } }),
+      expect.objectContaining({ slug: "related-stem", image: { src: "/assets/cover.jpg", alt: "Related product assigned cover" } }),
+    ]));
     expect(productDetail).toMatchObject({
       name: "Magnolia stem",
       specifications: [{ label: "Material", value: "Textile" }],
-      relatedProducts: [{ slug: "related-stem" }],
+      relatedProducts: [{ slug: "related-stem", image: { src: "/assets/cover.jpg", alt: "Related product assigned cover" } }],
     });
     expect(productDetail?.images).toEqual([
-      { src: "/assets/cover.jpg", alt: "Magnolia cover" },
+      { src: "/assets/cover.jpg", alt: "Assigned magnolia cover" },
       { src: "/assets/detail.jpg", alt: "Petal close-up" },
     ]);
     expect(productDetail).not.toHaveProperty("price");

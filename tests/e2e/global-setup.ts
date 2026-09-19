@@ -60,6 +60,30 @@ VALUES (${sql(`e2e-bulk-space-${suffix}`)}, 'en', ${sql(`E2E Bulk Space ${suffix
     return `INSERT INTO media (id, object_key, original_filename, mime_type, byte_size, alt_text, is_deleted, created_at, updated_at)
 VALUES (${sql(`e2e-bulk-media-${suffix}`)}, ${sql(`00000000-0000-4000-8000-${uuidTail}.jpg`)}, ${sql(`E2E Bulk Media ${suffix}.jpg`)}, 'image/jpeg', 10, ${sql(`E2E bulk magnolia image ${suffix}`)}, 0, '2000-01-01T00:00:00.000Z', '2000-01-01T00:00:00.000Z');`;
   }).join("\n");
+  const clampMedia = Array.from({ length: 97 }, (_, index) => {
+    const suffix = String(index + 1).padStart(3, "0");
+    const uuidTail = String(index + 1).padStart(12, "0");
+    return `INSERT INTO media (id, object_key, original_filename, mime_type, byte_size, alt_text, is_deleted, created_at, updated_at)
+VALUES (${sql(`e2e-clamp-media-${suffix}`)}, ${sql(`10000000-0000-4000-8000-${uuidTail}.jpg`)}, ${sql(`E2E Clamp Media ${suffix}.jpg`)}, 'image/jpeg', 10, ${sql(`E2E final page clamp image ${suffix}`)}, 0, '2000-01-02T00:00:00.000Z', '2000-01-02T00:00:00.000Z');`;
+  }).join("\n");
+  const assignmentAltFixtures = `INSERT INTO categories (id, locale, name, slug, sort_order, status, created_at, updated_at)
+VALUES ('e2e-alt-category', 'en', 'E2E assignment collection', 'e2e-assignment-collection', 999, 'published', ${sql(now)}, ${sql(now)});
+INSERT INTO products (id, locale, name, slug, product_code, summary, body, specifications_json, category_id, cover_media_id, status, created_at, updated_at)
+VALUES ('e2e-alt-product-primary', 'en', 'E2E assignment primary', 'e2e-alt-product-primary', 'E2E-ALT-PRIMARY', 'Primary summary', 'Primary body', '{}', 'e2e-alt-category', 'e2e-bulk-media-105', 'published', ${sql(now)}, ${sql(now)});
+INSERT INTO products (id, locale, name, slug, product_code, summary, body, specifications_json, category_id, cover_media_id, status, created_at, updated_at)
+VALUES ('e2e-alt-product-related', 'en', 'E2E assignment related', 'e2e-alt-product-related', 'E2E-ALT-RELATED', 'Related summary', 'Related body', '{}', 'e2e-alt-category', 'e2e-bulk-media-104', 'published', ${sql(now)}, ${sql(now)});
+INSERT INTO product_images (id, product_id, media_id, alt_text, sort_order, is_cover, created_at)
+VALUES ('e2e-alt-product-primary-cover', 'e2e-alt-product-primary', 'e2e-bulk-media-105', 'Primary product assignment alt', 0, 1, ${sql(now)});
+INSERT INTO product_images (id, product_id, media_id, alt_text, sort_order, is_cover, created_at)
+VALUES ('e2e-alt-product-related-cover', 'e2e-alt-product-related', 'e2e-bulk-media-104', 'Related product assignment alt', 0, 1, ${sql(now)});
+INSERT INTO spaces (id, locale, title, slug, category, summary, body, cover_media_id, status, created_at, updated_at)
+VALUES ('e2e-alt-space-primary', 'en', 'E2E assignment primary space', 'e2e-alt-space-primary', 'E2E Assignment Spaces', 'Primary space summary', 'Primary space body', 'e2e-bulk-media-103', 'published', ${sql(now)}, ${sql(now)});
+INSERT INTO spaces (id, locale, title, slug, category, summary, body, cover_media_id, status, created_at, updated_at)
+VALUES ('e2e-alt-space-related', 'en', 'E2E assignment related space', 'e2e-alt-space-related', 'E2E Assignment Spaces', 'Related space summary', 'Related space body', 'e2e-bulk-media-102', 'published', ${sql(now)}, ${sql(now)});
+INSERT INTO space_images (id, space_id, media_id, alt_text, sort_order, created_at)
+VALUES ('e2e-alt-space-primary-cover', 'e2e-alt-space-primary', 'e2e-bulk-media-103', 'Primary space assignment alt', 0, ${sql(now)});
+INSERT INTO space_images (id, space_id, media_id, alt_text, sort_order, created_at)
+VALUES ('e2e-alt-space-related-cover', 'e2e-alt-space-related', 'e2e-bulk-media-102', 'Related space assignment alt', 0, ${sql(now)});`;
   return `DELETE FROM product_images WHERE product_id IN (SELECT id FROM products WHERE slug LIKE 'e2e-%' OR slug LIKE 'picker-pagination-%');
 DELETE FROM products WHERE slug LIKE 'e2e-%' OR slug LIKE 'picker-pagination-%';
 DELETE FROM space_images WHERE space_id IN (SELECT id FROM spaces WHERE slug LIKE 'e2e-%');
@@ -68,6 +92,7 @@ DELETE FROM articles WHERE slug LIKE 'e2e-%';
 DELETE FROM pages WHERE page_key LIKE 'e2e-%';
 DELETE FROM categories WHERE slug LIKE 'e2e-%';
 DELETE FROM media WHERE id LIKE 'e2e-bulk-media-%';
+DELETE FROM media WHERE id LIKE 'e2e-clamp-media-%';
 DELETE FROM inquiry_interests WHERE inquiry_id LIKE 'e2e-dashboard-%';
 DELETE FROM inquiries WHERE id LIKE 'e2e-dashboard-%';
 DELETE FROM sessions WHERE user_id IN ('e2e-admin', 'e2e-editor', 'e2e-sales');
@@ -76,7 +101,9 @@ ${users}
 ${inquiries}
 ${bulkCategories}
 ${bulkSpaces}
-${bulkMedia}`;
+${bulkMedia}
+${clampMedia}
+${assignmentAltFixtures}`;
 }
 
 function sql(value: string): string {

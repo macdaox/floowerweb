@@ -33,6 +33,20 @@ test("catalog pages provide empty and missing-record outcomes", async ({ page })
   await expect(page.getByText(/no published products are available/i)).toBeVisible();
 });
 
+test("product and space cards render their cover assignment alt in lists and related sections", async ({ page }) => {
+  await navigate(page, "/collections");
+  await expect(page.locator('a[href="/products/e2e-alt-product-related"] img')).toHaveAttribute("alt", "Related product assignment alt");
+
+  await navigate(page, "/products/e2e-alt-product-primary");
+  await expect(page.locator('a[href="/products/e2e-alt-product-related"] img')).toHaveAttribute("alt", "Related product assignment alt");
+
+  await navigate(page, "/spaces");
+  await expect(page.locator('a[href="/spaces/e2e-alt-space-related"] img')).toHaveAttribute("alt", "Related space assignment alt");
+
+  await navigate(page, "/spaces/e2e-alt-space-primary");
+  await expect(page.locator('a[href="/spaces/e2e-alt-space-related"] img')).toHaveAttribute("alt", "Related space assignment alt");
+});
+
 function navigate(page: Page, url: string) {
   return page.goto(url, { waitUntil: "commit", timeout: 5_000 });
 }

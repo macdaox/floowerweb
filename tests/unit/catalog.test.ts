@@ -19,7 +19,7 @@ function d1(rows: QueryRows): D1Database {
           return rows.product;
         },
         all: async () => ({
-          results: sql.includes("FROM product_images") ? rows.images : sql.includes("p.id <> ?") ? rows.related : rows.cards,
+          results: sql.includes("FROM product_images pi\n    JOIN media") ? rows.images : sql.includes("p.id <> ?") ? rows.related : rows.cards,
         }),
       };
       return statement;

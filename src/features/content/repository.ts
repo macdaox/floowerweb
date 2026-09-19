@@ -13,20 +13,23 @@ export async function findPreviewPageByIdRow(db: D1Database, id: string, locale:
 }
 
 export async function listPublishedSpaceRows(db: D1Database, locale: string): Promise<Row[]> {
-  const result = await db.prepare(`SELECT s.id, s.title, s.slug, s.category, s.location, s.summary, s.body, s.seo_title, s.seo_description, m.object_key, m.original_filename, m.alt_text
+  const result = await db.prepare(`SELECT s.id, s.title, s.slug, s.category, s.location, s.summary, s.body, s.seo_title, s.seo_description, m.object_key, m.original_filename,
+    COALESCE((SELECT si.alt_text FROM space_images si WHERE si.space_id = s.id AND si.media_id = s.cover_media_id ORDER BY si.sort_order, si.id LIMIT 1), m.alt_text) AS alt_text
     FROM spaces s LEFT JOIN media m ON m.id = s.cover_media_id AND m.is_deleted = 0
     WHERE s.locale = ? AND s.status = 'published' ORDER BY s.updated_at DESC, s.title, s.id`).bind(locale).all<Row>();
   return result.results;
 }
 
 export async function findPublishedSpaceRow(db: D1Database, locale: string, slug: string): Promise<Row | null> {
-  return db.prepare(`SELECT s.id, s.title, s.slug, s.category, s.location, s.summary, s.body, s.seo_title, s.seo_description, m.object_key, m.original_filename, m.alt_text
+  return db.prepare(`SELECT s.id, s.title, s.slug, s.category, s.location, s.summary, s.body, s.seo_title, s.seo_description, m.object_key, m.original_filename,
+    COALESCE((SELECT si.alt_text FROM space_images si WHERE si.space_id = s.id AND si.media_id = s.cover_media_id ORDER BY si.sort_order, si.id LIMIT 1), m.alt_text) AS alt_text
     FROM spaces s LEFT JOIN media m ON m.id = s.cover_media_id AND m.is_deleted = 0
     WHERE s.locale = ? AND s.slug = ? AND s.status = 'published' LIMIT 1`).bind(locale, slug).first<Row>();
 }
 
 export async function findPreviewSpaceRow(db: D1Database, locale: string, id: string, slug: string): Promise<Row | null> {
-  return db.prepare(`SELECT s.id, s.title, s.slug, s.category, s.location, s.summary, s.body, s.seo_title, s.seo_description, m.object_key, m.original_filename, m.alt_text
+  return db.prepare(`SELECT s.id, s.title, s.slug, s.category, s.location, s.summary, s.body, s.seo_title, s.seo_description, m.object_key, m.original_filename,
+    COALESCE((SELECT si.alt_text FROM space_images si WHERE si.space_id = s.id AND si.media_id = s.cover_media_id ORDER BY si.sort_order, si.id LIMIT 1), m.alt_text) AS alt_text
     FROM spaces s LEFT JOIN media m ON m.id = s.cover_media_id AND m.is_deleted = 0
     WHERE s.id = ? AND s.locale = ? AND s.slug = ? AND s.status <> 'archived' LIMIT 1`).bind(id, locale, slug).first<Row>();
 }
@@ -38,7 +41,8 @@ export async function listSpaceImageRows(db: D1Database, spaceId: string): Promi
 }
 
 export async function listRelatedSpaceRows(db: D1Database, locale: string, category: string, id: string): Promise<Row[]> {
-  const result = await db.prepare(`SELECT s.title, s.slug, s.category, s.location, s.summary, m.object_key, m.original_filename, m.alt_text FROM spaces s
+  const result = await db.prepare(`SELECT s.title, s.slug, s.category, s.location, s.summary, m.object_key, m.original_filename,
+    COALESCE((SELECT si.alt_text FROM space_images si WHERE si.space_id = s.id AND si.media_id = s.cover_media_id ORDER BY si.sort_order, si.id LIMIT 1), m.alt_text) AS alt_text FROM spaces s
     LEFT JOIN media m ON m.id = s.cover_media_id AND m.is_deleted = 0 WHERE s.locale = ? AND s.category = ? AND s.id <> ? AND s.status = 'published'
     ORDER BY s.updated_at DESC, s.title, s.id LIMIT 3`).bind(locale, category, id).all<Row>();
   return result.results;

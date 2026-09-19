@@ -17,7 +17,10 @@ export async function listPublishedProductRows(db: D1Database, query: ProductLis
   values.push(query.limit, query.offset);
   const result = await db.prepare(`
     SELECT p.name, p.slug, p.summary, c.name AS category_name, c.slug AS category_slug,
-      m.object_key, m.original_filename, m.alt_text
+      m.object_key, m.original_filename,
+      COALESCE((SELECT pi.alt_text FROM product_images pi
+        WHERE pi.product_id = p.id AND pi.media_id = p.cover_media_id
+        ORDER BY pi.is_cover DESC, pi.sort_order, pi.id LIMIT 1), m.alt_text) AS alt_text
     FROM products p
     JOIN categories c ON c.id = p.category_id
     LEFT JOIN media m ON m.id = p.cover_media_id AND m.is_deleted = 0
@@ -43,7 +46,10 @@ export async function findPublishedProductRow(db: D1Database, locale: string, sl
   return db.prepare(`
     SELECT p.id, p.name, p.slug, p.product_code, p.summary, p.body, p.specifications_json,
       p.seo_title, p.seo_description, c.name AS category_name, c.slug AS category_slug,
-      m.object_key, m.original_filename, m.alt_text
+      m.object_key, m.original_filename,
+      COALESCE((SELECT pi.alt_text FROM product_images pi
+        WHERE pi.product_id = p.id AND pi.media_id = p.cover_media_id
+        ORDER BY pi.is_cover DESC, pi.sort_order, pi.id LIMIT 1), m.alt_text) AS alt_text
     FROM products p
     JOIN categories c ON c.id = p.category_id
     LEFT JOIN media m ON m.id = p.cover_media_id AND m.is_deleted = 0
@@ -56,7 +62,10 @@ export async function findPreviewProductRow(db: D1Database, locale: string, id: 
   return db.prepare(`
     SELECT p.id, p.name, p.slug, p.product_code, p.summary, p.body, p.specifications_json,
       p.seo_title, p.seo_description, c.name AS category_name, c.slug AS category_slug,
-      m.object_key, m.original_filename, m.alt_text
+      m.object_key, m.original_filename,
+      COALESCE((SELECT pi.alt_text FROM product_images pi
+        WHERE pi.product_id = p.id AND pi.media_id = p.cover_media_id
+        ORDER BY pi.is_cover DESC, pi.sort_order, pi.id LIMIT 1), m.alt_text) AS alt_text
     FROM products p
     JOIN categories c ON c.id = p.category_id
     LEFT JOIN media m ON m.id = p.cover_media_id AND m.is_deleted = 0
@@ -79,7 +88,10 @@ export async function listProductImageRows(db: D1Database, productId: string): P
 export async function listRelatedProductRows(db: D1Database, locale: string, categorySlug: string, productId: string): Promise<Row[]> {
   const result = await db.prepare(`
     SELECT p.name, p.slug, p.summary, c.name AS category_name, c.slug AS category_slug,
-      m.object_key, m.original_filename, m.alt_text
+      m.object_key, m.original_filename,
+      COALESCE((SELECT pi.alt_text FROM product_images pi
+        WHERE pi.product_id = p.id AND pi.media_id = p.cover_media_id
+        ORDER BY pi.is_cover DESC, pi.sort_order, pi.id LIMIT 1), m.alt_text) AS alt_text
     FROM products p
     JOIN categories c ON c.id = p.category_id
     LEFT JOIN media m ON m.id = p.cover_media_id AND m.is_deleted = 0

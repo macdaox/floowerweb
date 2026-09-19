@@ -98,6 +98,25 @@ test("media library and gallery picker reach matching items beyond the first 100
   await expect(page.locator("[data-gallery-item]", { hasText: "E2E Bulk Media 001.jpg" })).toBeVisible();
 });
 
+test("deleting the sole final-page item returns the media library to the last valid page", async ({ page }) => {
+  await login(page, "e2e-editor@everstem.test");
+  await page.goto("/admin/media");
+  await page.getByLabel("搜索媒体").fill("E2E final page clamp image");
+  await expect(page.getByText("第 1 / 5 页，共 97 张图片")).toBeVisible();
+  for (let pageNumber = 2; pageNumber <= 5; pageNumber += 1) {
+    await page.getByRole("button", { name: "下一页" }).click();
+    await expect(page.getByText(`第 ${pageNumber} / 5 页，共 97 张图片`)).toBeVisible();
+  }
+  const finalCard = page.locator("[data-media-card]", { hasText: "E2E Clamp Media 001.jpg" });
+  await expect(finalCard).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await finalCard.getByRole("button", { name: "删除" }).click();
+
+  await expect(page.getByText("第 4 / 4 页，共 96 张图片")).toBeVisible();
+  await expect(page.getByText(/第 5 \/ 4 页/u)).toHaveCount(0);
+  await expect(page.locator("[data-media-card]", { hasText: "E2E Clamp Media 002.jpg" })).toBeVisible();
+});
+
 async function upload(page: Page, name: string, mimeType: string, buffer: Buffer, altText: string): Promise<void> {
   await page.getByLabel("图片文件").setInputFiles({ name, mimeType, buffer });
   await page.getByLabel("默认替代文本").fill(altText);

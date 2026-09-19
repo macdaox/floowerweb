@@ -102,6 +102,11 @@ export function initializeMediaLibrary(root: HTMLElement): void {
       const body = await response.json() as { ok: boolean; data?: { items: MediaItem[]; total: number; page: number; totalPages: number }; error?: { message?: string } };
       if (!response.ok || !body.ok || !body.data) throw new Error(body.error?.message ?? "无法加载媒体。");
       if (sequence !== loadSequence) return;
+      if (body.data.page > body.data.totalPages) {
+        currentPage = body.data.totalPages;
+        await load();
+        return;
+      }
       currentPage = body.data.page;
       totalPages = body.data.totalPages;
       listStatus.removeAttribute("role");
