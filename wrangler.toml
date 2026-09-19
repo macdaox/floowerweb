@@ -2,6 +2,9 @@ name = "everstem"
 compatibility_date = "2026-09-13"
 pages_build_output_dir = "./dist"
 
+[vars]
+MEDIA_MAX_BYTES = "10485760"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "everstem-preview"
@@ -19,3 +22,6 @@ database_id = "00000000-0000-0000-0000-000000000000"
 [[env.production.r2_buckets]]
 binding = "MEDIA"
 bucket_name = "everstem-media-production"
+
+[env.production.vars]
+MEDIA_MAX_BYTES = "10485760"

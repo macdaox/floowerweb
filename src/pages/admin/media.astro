@@ -1,0 +1,19 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { requireRole } from "../../features/auth/authorize";
+const user = requireRole(Astro.locals, ["admin", "editor"]);
+---
+<AdminLayout title="媒体库" user={user}>
+  <section class="dashboard media-admin-page" aria-labelledby="media-title">
+    <header class="dashboard__heading">
+      <div><p class="admin-kicker">内容资产</p><h1 id="media-title">媒体库</h1></div>
+    </header>
+    <p class="dashboard-panel__copy">上传和复用 JPG、PNG、WebP 或 AVIF 图片。内容引用中的图片会受到删除保护。</p>
+    <div data-media-library></div>
+  </section>
+  <script>
+    import { initializeMediaLibrary } from "../../components/admin/MediaLibrary";
+    const root = document.querySelector<HTMLElement>("[data-media-library]");
+    if (root) initializeMediaLibrary(root);
+  </script>
+</AdminLayout>

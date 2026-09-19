@@ -5,6 +5,7 @@ import type { AuthUser } from "./features/auth/authorize";
 export interface RuntimeEnv {
   DB: D1Database;
   MEDIA: R2Bucket;
+  MEDIA_MAX_BYTES?: string;
   SESSION_SECRET: string;
 }
 

@@ -1,3 +1,5 @@
+import { initializeGalleryEditor } from "./GalleryEditor";
+
 export type ContentEntity = "products" | "categories" | "spaces" | "articles" | "pages";
 export type ContentRecord = Record<string, unknown> & { id?: string; updatedAt?: string; status?: string };
 
@@ -116,8 +118,11 @@ export function initializeContentEditor(root: HTMLElement, options?: EditorOptio
   message.className = "content-editor__status";
   message.setAttribute("role", "status");
   message.setAttribute("aria-live", "polite");
-  root.replaceChildren(header, form, message);
+  const gallery = document.createElement("section");
+  gallery.hidden = entity !== "products" && entity !== "spaces";
+  root.replaceChildren(header, form, message, gallery);
   syncActions();
+  syncGallery();
   const categoryControl = form.elements.namedItem("categoryId");
   if (entity === "products" && categoryControl instanceof HTMLSelectElement) void loadCategoryOptions(categoryControl, record.categoryId);
 
@@ -171,6 +176,7 @@ export function initializeContentEditor(root: HTMLElement, options?: EditorOptio
       message.textContent = "已保存。";
       heading.textContent = "编辑内容";
       syncActions();
+      syncGallery();
       options?.onSaved?.(record);
     } catch (error) {
       showError(error);
@@ -222,6 +228,15 @@ export function initializeContentEditor(root: HTMLElement, options?: EditorOptio
     publish.hidden = !saved || record.status === "published" || record.status === "archived";
     unpublish.hidden = !saved || record.status !== "published";
     archive.hidden = !saved || record.status === "archived";
+  }
+
+  function syncGallery(): void {
+    if ((entity !== "products" && entity !== "spaces") || !record.id) {
+      gallery.hidden = true;
+      return;
+    }
+    gallery.hidden = false;
+    initializeGalleryEditor(gallery, { entity: entity === "products" ? "product" : "space", contentId: record.id });
   }
 
   function setBusy(value: boolean): void {

@@ -1,3 +1,5 @@
+import { publicMediaUrl } from "../media/schemas";
+
 export interface CatalogImage {
   src: string;
   alt: string;
@@ -44,8 +46,8 @@ export interface Page<T> {
 export const PUBLIC_PAGE_SIZE = 24 as const;
 
 export function mediaFromRow(row: Record<string, unknown>): CatalogImage | undefined {
-  const filename = text(row.original_filename);
-  return filename ? { src: `/assets/${filename}`, alt: text(row.alt_text) || "EVERSTEM botanical object" } : undefined;
+  const src = publicMediaUrl(row);
+  return src ? { src, alt: text(row.alt_text) || "EVERSTEM botanical object" } : undefined;
 }
 
 export function specificationsFromJson(value: unknown): Specification[] {

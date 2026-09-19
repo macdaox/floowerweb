@@ -1,3 +1,5 @@
+import { publicMediaUrl } from "../media/schemas";
+
 export interface ContentImage {
   src: string;
   alt: string;
@@ -74,9 +76,8 @@ export function serializePageBlocks(value: unknown): string {
 }
 
 export function contentImageFromRow(row: Record<string, unknown>): ContentImage | undefined {
-  const filename = text(row.original_filename);
-  if (!filename || filename.includes("..") || filename.includes("/") || filename.includes("\\")) return undefined;
-  return { src: `/assets/${encodeURIComponent(filename)}`, alt: text(row.alt_text) || "EVERSTEM botanical object" };
+  const src = publicMediaUrl(row);
+  return src ? { src, alt: text(row.alt_text) || "EVERSTEM botanical object" } : undefined;
 }
 
 export function text(value: unknown): string {
