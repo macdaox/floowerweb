@@ -56,6 +56,30 @@ describe("admin operations", () => {
     expect((await inquiryRoute.GET(context("GET", "sales", "list", "/api/admin/inquiries/list?dateTo=2026-99-99"))).status).toBe(422);
   });
 
+  it("clamps an inquiry list request after a transition removes the sole item from the requested page", async () => {
+    for (let index = 1; index <= 20; index += 1) {
+      const suffix = String(index).padStart(2, "0");
+      await database.prepare(`INSERT INTO inquiries (id, inquiry_type, name, email, source_route, status, created_at, updated_at)
+        VALUES (?, 'contact', ?, ?, '/pagination', 'new', ?, ?)`)
+        .bind(`page-inquiry-${suffix}`, `Buyer ${suffix}`, `buyer-${suffix}@example.test`, initialTime, initialTime).run();
+    }
+
+    const before = await inquiryRoute.GET(context("GET", "sales", "list", "/api/admin/inquiries/list?status=new&page=2&pageSize=20"));
+    expect(before.status).toBe(200);
+    const beforeBody = await data<{ items: Array<{ id: string; updatedAt: string }>; page: number; totalPages: number }>(before);
+    expect(beforeBody).toMatchObject({ page: 2, totalPages: 2 });
+    expect(beforeBody.items).toHaveLength(1);
+
+    const removed = beforeBody.items[0];
+    expect((await mutateInquiry("sales", removed.id, { action: "transition", status: "contacted", updatedAt: removed.updatedAt })).status).toBe(200);
+
+    const after = await inquiryRoute.GET(context("GET", "sales", "list", "/api/admin/inquiries/list?status=new&page=2&pageSize=20"));
+    expect(after.status).toBe(200);
+    const afterBody = await data<{ items: Array<{ id: string }>; page: number; totalPages: number }>(after);
+    expect(afterBody).toMatchObject({ page: 1, totalPages: 1 });
+    expect(afterBody.items).toHaveLength(20);
+  });
+
   it("assigns inquiries, validates every transition edge, creates immutable notes, and audits mutations", async () => {
     const assigned = await mutateInquiry("sales", "inquiry-1", { action: "assign", assigneeUserId: "admin-1", updatedAt: initialTime });
     expect(assigned.status).toBe(200);
@@ -142,6 +166,28 @@ describe("admin operations", () => {
     expect(staleDeactivate.status).toBe(409);
     expect(await database.prepare("SELECT id FROM sessions WHERE id = 'preserved-session'").first()).toEqual({ id: "preserved-session" });
     expect((await database.prepare("SELECT COUNT(*) AS total FROM audit_logs WHERE entity_id = 'target-1'").first<{ total: number }>())?.total).toBe(0);
+  });
+
+  it("audits only the winning same-millisecond user update and ties session revocation to that winner", async () => {
+    await database.prepare("INSERT INTO sessions (id, token_digest, user_id, expires_at, created_at) VALUES ('race-session', 'race-digest', 'target-1', '2099-01-01', ?)").bind(initialTime).run();
+
+    const [roleResponse, deactivateResponse] = await Promise.all([
+      mutateUser("admin", "target-1", { action: "update", role: "sales", updatedAt: initialTime }),
+      mutateUser("admin", "target-1", { action: "update", isActive: false, updatedAt: initialTime }),
+    ]);
+    expect([roleResponse.status, deactivateResponse.status].sort()).toEqual([200, 409]);
+
+    const user = await database.prepare("SELECT role, is_active AS isActive FROM users WHERE id = 'target-1'").first<{ role: string; isActive: number }>();
+    const auditRows = await database.prepare("SELECT context_text AS contextText FROM audit_logs WHERE entity_type = 'user' AND entity_id = 'target-1'").all<{ contextText: string }>();
+    expect(auditRows.results).toHaveLength(1);
+    expect(JSON.parse(auditRows.results[0].contextText)).toEqual(user?.isActive === 0 ? { isActive: false } : { role: "sales" });
+
+    const session = await database.prepare("SELECT id FROM sessions WHERE id = 'race-session'").first();
+    if (user?.isActive === 0) expect(session).toBeNull();
+    else {
+      expect(user).toEqual({ role: "sales", isActive: 1 });
+      expect(session).toEqual({ id: "race-session" });
+    }
   });
 
   it("allows editing an inactive admin and atomically keeps one active admin under concurrent removals", async () => {

@@ -19,7 +19,12 @@ test("sales manages an inquiry, adds a note, filters subscribers, and exports CS
   await expect(page.getByText("第 2 / 2 页")).toBeVisible();
   await page.getByRole("button", { name: /E2E Later Inquiry/ }).click();
   await expect(page.locator("[aria-label='询盘详情']")).toContainText("later-inquiry@example.test");
+  await page.getByLabel("转换状态").selectOption("contacted");
+  await page.getByRole("button", { name: "更新状态" }).click();
+  await expect(page.locator("[aria-label='询盘详情']")).toContainText("已联系");
   await page.getByRole("button", { name: "关闭询盘" }).click();
+  await expect(page.getByText("第 1 / 1 页")).toBeVisible();
+  await expect(page.getByRole("button", { name: /王三/ })).toBeVisible();
   await page.getByLabel("状态筛选").selectOption("contacted");
   await expect(page.getByText("第 1 / 1 页")).toBeVisible();
   await expect(page.getByRole("button", { name: "上一页" })).toBeDisabled();

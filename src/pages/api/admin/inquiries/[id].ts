@@ -66,15 +66,17 @@ async function listInquiries(db: D1Database, search: URLSearchParams) {
   }
   const { page, pageSize } = pagination(search);
   const count = await db.prepare(`SELECT COUNT(*) AS total FROM inquiries i LEFT JOIN products p ON p.id = i.product_id WHERE ${where.join(" AND ")}`).bind(...values).first<{ total: number | string }>();
+  const total = Number(count?.total ?? 0);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const effectivePage = Math.min(page, totalPages);
   const rows = await db.prepare(`SELECT i.id, i.inquiry_type AS inquiryType, i.name, i.email, i.company, i.country, i.status,
       i.assignee_user_id AS assigneeUserId, u.display_name AS assigneeDisplayName, i.product_id AS productId,
       p.name AS productName, i.created_at AS createdAt, i.updated_at AS updatedAt
     FROM inquiries i LEFT JOIN users u ON u.id = i.assignee_user_id LEFT JOIN products p ON p.id = i.product_id
     WHERE ${where.join(" AND ")} ORDER BY i.created_at DESC, i.id DESC LIMIT ? OFFSET ?`)
-    .bind(...values, pageSize, (page - 1) * pageSize).all();
+    .bind(...values, pageSize, (effectivePage - 1) * pageSize).all();
   const assignees = await db.prepare("SELECT id, display_name AS displayName, role FROM users WHERE is_active = 1 AND role IN ('admin', 'sales') ORDER BY display_name, id").all();
-  const total = Number(count?.total ?? 0);
-  return { items: rows.results, assignees: assignees.results, page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  return { items: rows.results, assignees: assignees.results, page: effectivePage, pageSize, total, totalPages };
 }
 
 async function inquiryDetail(db: D1Database, id: string) {

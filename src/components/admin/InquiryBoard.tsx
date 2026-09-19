@@ -52,6 +52,11 @@ export function initializeInquiryBoard(root: HTMLElement): void {
       const response = await fetch(`/api/admin/inquiries/list?${query}`);
       const body = await response.json() as { ok: boolean; data?: ListData; error?: { message?: string } };
       if (!response.ok || !body.ok || !body.data) throw new Error(body.error?.message ?? "无法加载询盘。");
+      if (body.data.page > body.data.totalPages) {
+        page = body.data.totalPages;
+        await load();
+        return;
+      }
       page = body.data.page;
       totalPages = body.data.totalPages;
       render(body.data);

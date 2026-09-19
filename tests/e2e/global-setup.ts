@@ -43,7 +43,7 @@ ON CONFLICT(email) DO UPDATE SET display_name = excluded.display_name, password_
     ["e2e-dashboard-04", "赵四", "zhao4@example.test", "采购公司", "qualified", "2099-01-01T00:00:03.000Z"],
     ["e2e-dashboard-05", "周五", "zhou5@example.test", "设计公司", "closed", "2099-01-01T00:00:02.000Z"],
     ["e2e-dashboard-06", "<img src=x>", "safe@example.test", "文本安全", "new", "2099-01-01T00:00:01.000Z"],
-    ...Array.from({ length: 19 }, (_, index) => {
+    ...Array.from({ length: 18 }, (_, index) => {
       const suffix = String(index + 1).padStart(2, "0");
       return [`e2e-dashboard-page-${suffix}`, `E2E Page Inquiry ${suffix}`, `page-${suffix}@example.test`, "Pagination Co", "new", `2098-12-${String(31 - index).padStart(2, "0")}T00:00:00.000Z`];
     }),

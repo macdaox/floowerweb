@@ -70,6 +70,7 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
 
 async function mutateUser(db: D1Database, current: UserRow, payload: z.infer<typeof payloadSchema>, actor: AuthUser) {
   const timestamp = nextTimestamp(current.updatedAt);
+  const auditId = crypto.randomUUID();
   let mutation: D1PreparedStatement;
   let action: string;
   let context: object;
@@ -93,11 +94,11 @@ async function mutateUser(db: D1Database, current: UserRow, payload: z.infer<typ
   }
   const [result] = await db.batch([
     mutation,
-    db.prepare("DELETE FROM sessions WHERE user_id = ? AND ? = 1 AND changes() = 1")
-      .bind(current.id, payload.action === "resetPassword" || payload.action === "update" && payload.isActive === false ? 1 : 0),
     db.prepare(`INSERT INTO audit_logs (id, actor_user_id, action, entity_type, entity_id, context_text, created_at)
-      SELECT ?, ?, ?, 'user', ?, ?, ? WHERE EXISTS (SELECT 1 FROM users WHERE id = ? AND updated_at = ?)`)
-      .bind(crypto.randomUUID(), actor.id, action, current.id, JSON.stringify(context), timestamp, current.id, timestamp),
+      SELECT ?, ?, ?, 'user', ?, ?, ? WHERE changes() = 1`)
+      .bind(auditId, actor.id, action, current.id, JSON.stringify(context), timestamp),
+    db.prepare("DELETE FROM sessions WHERE user_id = ? AND ? = 1 AND EXISTS (SELECT 1 FROM audit_logs WHERE id = ?)")
+      .bind(current.id, payload.action === "resetPassword" || payload.action === "update" && payload.isActive === false ? 1 : 0, auditId),
   ]);
   if (Number(result.meta?.changes ?? 0) !== 1) await throwUserWriteFailure(db, current, payload);
   const updated = await readUser(db, current.id);
