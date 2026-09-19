@@ -2,7 +2,7 @@ import { z, type ZodType } from "zod";
 import { issuePreviewToken, resolvePreviewSecret, type PreviewKind } from "../admin-content/preview";
 import type { AuthUser } from "../auth/authorize";
 import { HttpError } from "../../lib/http/errors";
-import { serializePageBlocks } from "./schemas";
+import { pageInsertStatement, pageUpdateStatement, type PageWriteStatement } from "./write";
 
 export type AdminEntity = PreviewKind;
 export type AdminStatus = "draft" | "published" | "archived";
@@ -130,13 +130,18 @@ export async function createAdminContent(db: D1Database, entity: AdminEntity, da
   const now = new Date().toISOString();
   const values = withCreateDefaults(entity, data);
   const fields = Object.keys(values);
+  const mutation = entity === "page"
+    ? preparePageStatement(db, () => pageInsertStatement({
+      id, key: String(values.pageKey), locale: "en", sections: values.sections,
+      seoTitle: nullableText(values.seoTitle), seoDescription: nullableText(values.seoDescription), createdAt: now, updatedAt: now,
+    }))
+    : db.prepare(`INSERT INTO ${config.table} (id, locale, status, ${fields.map((field) => config.editable[field]).join(", ")}, created_at, updated_at) VALUES (?, 'en', 'draft', ${fields.map(() => "?").join(", ")}, ?, ?)`)
+      .bind(id, ...fields.map((field) => values[field]), now, now);
   try {
-    await db.prepare(`INSERT INTO ${config.table} (id, locale, status, ${fields.map((field) => config.editable[field]).join(", ")}, created_at, updated_at) VALUES (?, 'en', 'draft', ${fields.map(() => "?").join(", ")}, ?, ?)`)
-      .bind(id, ...fields.map((field) => values[field]), now, now).run();
+    await db.batch([mutation, auditStatement(db, actor, "create", entity, id, now)]);
   } catch (error) {
     throw mapWriteError(error);
   }
-  await writeAudit(db, actor, "create", entity, id, now);
   return getAdminContent(db, entity, id);
 }
 
@@ -145,15 +150,26 @@ export async function updateAdminContent(db: D1Database, entity: AdminEntity, id
   const current = await getAdminContent(db, entity, id);
   const nextUpdatedAt = nextTimestamp(String(current.updatedAt));
   const fields = Object.keys(data);
+  if (current.status === "published") validatePublish(entity, { ...current, ...data });
+  const mutation = entity === "page"
+    ? preparePageStatement(db, () => pageUpdateStatement({
+      id, locale: "en", expectedUpdatedAt, updatedAt: nextUpdatedAt,
+      changes: {
+        ...(Object.prototype.hasOwnProperty.call(data, "pageKey") ? { key: String(data.pageKey) } : {}),
+        ...(Object.prototype.hasOwnProperty.call(data, "sections") ? { sections: data.sections } : {}),
+        ...(Object.prototype.hasOwnProperty.call(data, "seoTitle") ? { seoTitle: nullableText(data.seoTitle) } : {}),
+        ...(Object.prototype.hasOwnProperty.call(data, "seoDescription") ? { seoDescription: nullableText(data.seoDescription) } : {}),
+      },
+    }))
+    : db.prepare(`UPDATE ${config.table} SET ${fields.map((field) => `${config.editable[field]} = ?`).join(", ")}, updated_at = ? WHERE id = ? AND locale = 'en' AND updated_at = ?`)
+      .bind(...fields.map((field) => data[field]), nextUpdatedAt, id, expectedUpdatedAt);
   try {
-    const result = await db.prepare(`UPDATE ${config.table} SET ${fields.map((field) => `${config.editable[field]} = ?`).join(", ")}, updated_at = ? WHERE id = ? AND locale = 'en' AND updated_at = ?`)
-      .bind(...fields.map((field) => data[field]), nextUpdatedAt, id, expectedUpdatedAt).run();
+    const [result] = await db.batch([mutation, auditStatement(db, actor, "update", entity, id, nextUpdatedAt, { fields }, { table: config.table, updatedAt: nextUpdatedAt })]);
     if (Number(result.meta?.changes ?? 0) !== 1) throw conflict();
   } catch (error) {
     if (error instanceof HttpError) throw error;
     throw mapWriteError(error);
   }
-  await writeAudit(db, actor, "update", entity, id, nextUpdatedAt, { fields });
   return getAdminContent(db, entity, id);
 }
 
@@ -184,9 +200,16 @@ export async function transitionAdminContent(
   const nextUpdatedAt = nextTimestamp(current.updatedAt);
   const articlePublished = entity === "article" ? `, published_at = ${action === "publish" ? "COALESCE(published_at, ?)" : action === "unpublish" ? "NULL" : "published_at"}` : "";
   const values: unknown[] = entity === "article" && action === "publish" ? [status, nextUpdatedAt, nextUpdatedAt, id, current.updatedAt] : [status, nextUpdatedAt, id, current.updatedAt];
-  const result = await db.prepare(`UPDATE ${config.table} SET status = ?, updated_at = ?${articlePublished} WHERE id = ? AND locale = 'en' AND updated_at = ?`).bind(...values).run();
+  let result: D1Result<unknown>;
+  try {
+    [result] = await db.batch([
+      db.prepare(`UPDATE ${config.table} SET status = ?, updated_at = ?${articlePublished} WHERE id = ? AND locale = 'en' AND updated_at = ?`).bind(...values),
+      auditStatement(db, actor, action, entity, id, nextUpdatedAt, undefined, { table: config.table, updatedAt: nextUpdatedAt }),
+    ]);
+  } catch (error) {
+    throw mapWriteError(error);
+  }
   if (Number(result.meta?.changes ?? 0) !== 1) throw conflict();
-  await writeAudit(db, actor, action, entity, id, nextUpdatedAt);
   return getAdminContent(db, entity, id);
 }
 
@@ -196,10 +219,6 @@ function normalize(entity: AdminEntity, input: Record<string, unknown>): Record<
     if (typeof value === "string" && !value && !configurations[entity].createRequired.includes(field)) output[field] = null;
   }
   if (Object.prototype.hasOwnProperty.call(output, "specifications")) output.specifications = JSON.stringify(output.specifications);
-  if (Object.prototype.hasOwnProperty.call(output, "sections")) {
-    try { output.sections = serializePageBlocks(output.sections); }
-    catch (error) { throw new HttpError("invalid_payload", error instanceof Error ? error.message : "Invalid page sections.", 422, { sections: "Use supported page blocks." }); }
-  }
   return output;
 }
 
@@ -240,9 +259,34 @@ function parseJsonObject(value: unknown, fallback: Record<string, unknown> | unk
   try { return JSON.parse(value) as unknown; } catch { return fallback; }
 }
 
-async function writeAudit(db: D1Database, actor: AuthUser, action: string, entity: AdminEntity, id: string, timestamp: string, context?: object): Promise<void> {
-  await db.prepare("INSERT INTO audit_logs (id, actor_user_id, action, entity_type, entity_id, context_text, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
-    .bind(crypto.randomUUID(), actor.id, action, entity, id, context ? JSON.stringify(context) : null, timestamp).run();
+function auditStatement(
+  db: D1Database,
+  actor: AuthUser,
+  action: string,
+  entity: AdminEntity,
+  id: string,
+  timestamp: string,
+  context?: object,
+  condition?: { table: string; updatedAt: string },
+): D1PreparedStatement {
+  const conditionSql = condition ? ` WHERE EXISTS (SELECT 1 FROM ${condition.table} WHERE id = ? AND locale = 'en' AND updated_at = ?)` : "";
+  const values: unknown[] = [crypto.randomUUID(), actor.id, action, entity, id, context ? JSON.stringify(context) : null, timestamp];
+  if (condition) values.push(id, condition.updatedAt);
+  return db.prepare(`INSERT INTO audit_logs (id, actor_user_id, action, entity_type, entity_id, context_text, created_at) SELECT ?, ?, ?, ?, ?, ?, ?${conditionSql}`)
+    .bind(...values);
+}
+
+function preparePageStatement(db: D1Database, build: () => PageWriteStatement): D1PreparedStatement {
+  try {
+    const statement = build();
+    return db.prepare(statement.sql).bind(...statement.values);
+  } catch (error) {
+    throw new HttpError("invalid_payload", error instanceof Error ? error.message : "Invalid page sections.", 422, { sections: "Use supported page blocks." });
+  }
+}
+
+function nullableText(value: unknown): string | null | undefined {
+  return value === undefined ? undefined : typeof value === "string" ? value : null;
 }
 
 function parse<T>(schema: z.ZodType<T>, value: unknown): T {

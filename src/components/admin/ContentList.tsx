@@ -1,4 +1,4 @@
-import { initializeContentEditor, type ContentEntity, type ContentRecord } from "./editor";
+import { initializeContentEditor, loadAllContentRecords, type ContentEditorController, type ContentEntity, type ContentRecord } from "./editor";
 
 type ListResponse = {
   items: ContentRecord[];
@@ -23,6 +23,7 @@ export function initializeContentList(root: HTMLElement): void {
   let page = 1;
   let totalPages = 1;
   let timer: number | undefined;
+  let editorController: ContentEditorController | undefined;
 
   const create = document.createElement("button");
   create.type = "button";
@@ -155,22 +156,21 @@ export function initializeContentList(root: HTMLElement): void {
   }
 
   function openEditor(record?: ContentRecord): void {
+    if (editorController && !editorController.requestClose()) return;
+    editorController = undefined;
     editor.hidden = false;
-    editor.removeAttribute("data-initialized");
-    initializeContentEditor(editor, {
+    editorController = initializeContentEditor(editor, {
       entity,
       record,
       onSaved: () => void load(),
-      onClosed: () => { editor.hidden = true; editor.replaceChildren(); },
+      onClosed: () => { editorController = undefined; editor.hidden = true; editor.replaceChildren(); },
     });
     editor.querySelector<HTMLInputElement>("input, textarea, select")?.focus();
   }
 
   async function loadProductCategories(): Promise<void> {
     try {
-      const response = await fetch("/api/admin/categories?pageSize=100&order=name&direction=asc");
-      const body = await response.json() as { ok: boolean; data?: { items: ContentRecord[] } };
-      for (const item of body.data?.items ?? []) {
+      for (const item of await loadAllContentRecords("categories")) {
         const option = document.createElement("option");
         option.value = String(item.id);
         option.textContent = String(item.name ?? item.id);
@@ -183,9 +183,7 @@ export function initializeContentList(root: HTMLElement): void {
 
   async function loadSpaceCategories(): Promise<void> {
     try {
-      const response = await fetch("/api/admin/spaces?pageSize=100&order=name&direction=asc");
-      const body = await response.json() as { ok: boolean; data?: { items: ContentRecord[] } };
-      const values = [...new Set((body.data?.items ?? []).map((item) => String(item.category ?? "")).filter(Boolean))];
+      const values = [...new Set((await loadAllContentRecords("spaces")).map((item) => String(item.category ?? "")).filter(Boolean))];
       for (const value of values) {
         const option = document.createElement("option");
         option.value = value;

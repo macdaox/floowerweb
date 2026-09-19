@@ -44,6 +44,16 @@ ON CONFLICT(email) DO UPDATE SET display_name = excluded.display_name, password_
     ["e2e-dashboard-06", "<img src=x>", "safe@example.test", "文本安全", "new", "2099-01-01T00:00:01.000Z"],
   ].map(([id, name, email, company, status, timestamp]) => `INSERT INTO inquiries (id, inquiry_type, name, email, company, source_route, status, created_at, updated_at)
 VALUES (${sql(id)}, 'catalog', ${sql(name)}, ${sql(email)}, ${sql(company)}, '/__e2e__/dashboard', ${sql(status)}, ${sql(timestamp)}, ${sql(timestamp)});`).join("\n");
+  const bulkCategories = Array.from({ length: 105 }, (_, index) => {
+    const suffix = String(index + 1).padStart(3, "0");
+    return `INSERT INTO categories (id, locale, name, slug, sort_order, status, created_at, updated_at)
+VALUES (${sql(`e2e-bulk-category-${suffix}`)}, 'en', ${sql(`E2E Bulk Category ${suffix}`)}, ${sql(`e2e-bulk-category-${suffix}`)}, ${index + 1}, 'draft', ${sql(now)}, ${sql(now)});`;
+  }).join("\n");
+  const bulkSpaces = Array.from({ length: 105 }, (_, index) => {
+    const suffix = String(index + 1).padStart(3, "0");
+    return `INSERT INTO spaces (id, locale, title, slug, category, status, created_at, updated_at)
+VALUES (${sql(`e2e-bulk-space-${suffix}`)}, 'en', ${sql(`E2E Bulk Space ${suffix}`)}, ${sql(`e2e-bulk-space-${suffix}`)}, ${sql(`E2E Space Category ${suffix}`)}, 'draft', ${sql(now)}, ${sql(now)});`;
+  }).join("\n");
   return `DELETE FROM product_images WHERE product_id IN (SELECT id FROM products WHERE slug LIKE 'e2e-%');
 DELETE FROM products WHERE slug LIKE 'e2e-%';
 DELETE FROM space_images WHERE space_id IN (SELECT id FROM spaces WHERE slug LIKE 'e2e-%');
@@ -56,7 +66,9 @@ DELETE FROM inquiries WHERE id LIKE 'e2e-dashboard-%';
 DELETE FROM sessions WHERE user_id IN ('e2e-admin', 'e2e-editor', 'e2e-sales');
 DELETE FROM rate_limits WHERE key = 'auth:login:unknown';
 ${users}
-${inquiries}`;
+${inquiries}
+${bulkCategories}
+${bulkSpaces}`;
 }
 
 function sql(value: string): string {

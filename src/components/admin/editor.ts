@@ -1,6 +1,11 @@
 export type ContentEntity = "products" | "categories" | "spaces" | "articles" | "pages";
 export type ContentRecord = Record<string, unknown> & { id?: string; updatedAt?: string; status?: string };
 
+export type ContentEditorController = {
+  requestClose: () => boolean;
+  dispose: () => void;
+};
+
 type Field = {
   name: string;
   label: string;
@@ -47,8 +52,11 @@ const fields: Record<ContentEntity, Field[]> = {
   ],
 };
 
-export function initializeContentEditor(root: HTMLElement, options?: EditorOptions): void {
-  if (root.dataset.initialized) return;
+const activeEditors = new WeakMap<HTMLElement, ContentEditorController>();
+
+export function initializeContentEditor(root: HTMLElement, options?: EditorOptions): ContentEditorController {
+  const existing = activeEditors.get(root);
+  if (existing) return existing;
   root.dataset.initialized = "true";
   const entity = options?.entity ?? (root.dataset.contentEntity as ContentEntity | undefined) ?? "products";
   let record: ContentRecord = options?.record ?? {};
@@ -115,24 +123,36 @@ export function initializeContentEditor(root: HTMLElement, options?: EditorOptio
 
   form.addEventListener("input", () => { dirty = true; clearErrors(); });
   form.addEventListener("submit", (event) => { event.preventDefault(); void saveRecord(); });
-  close.addEventListener("click", () => {
-    if (!dirty || window.confirm("有未保存的更改，确定关闭吗？")) {
-      dirty = false;
-      window.removeEventListener("beforeunload", unload);
-      options?.onClosed?.();
-    }
-  });
-  preview.addEventListener("click", () => void performAction("preview"));
-  publish.addEventListener("click", () => void performAction("publish"));
-  unpublish.addEventListener("click", () => void performAction("unpublish"));
-  archive.addEventListener("click", () => void performAction("archive"));
-
   const unload = (event: BeforeUnloadEvent) => {
     if (!dirty) return;
     event.preventDefault();
     event.returnValue = "";
   };
+  let disposed = false;
+  const controller: ContentEditorController = {
+    requestClose: () => {
+      if (dirty && !window.confirm("有未保存的更改，确定关闭吗？")) return false;
+      controller.dispose();
+      return true;
+    },
+    dispose: () => {
+      if (disposed) return;
+      disposed = true;
+      dirty = false;
+      window.removeEventListener("beforeunload", unload);
+      activeEditors.delete(root);
+      delete root.dataset.initialized;
+    },
+  };
+  activeEditors.set(root, controller);
+  close.addEventListener("click", () => { if (controller.requestClose()) options?.onClosed?.(); });
+  preview.addEventListener("click", () => void performAction("preview"));
+  publish.addEventListener("click", () => void performAction("publish"));
+  unpublish.addEventListener("click", () => void performAction("unpublish"));
+  archive.addEventListener("click", () => void performAction("archive"));
   window.addEventListener("beforeunload", unload);
+
+  return controller;
 
   async function saveRecord(): Promise<void> {
     if (submitting) return;
@@ -264,10 +284,7 @@ function setValue(control: HTMLInputElement | HTMLTextAreaElement | HTMLSelectEl
 
 async function loadCategoryOptions(select: HTMLSelectElement, selected: unknown): Promise<void> {
   try {
-    const response = await fetch("/api/admin/categories?pageSize=100&order=name&direction=asc");
-    const body = await response.json() as { ok: boolean; data?: { items: ContentRecord[] } };
-    if (!response.ok || !body.ok) return;
-    for (const category of body.data?.items ?? []) {
+    for (const category of await loadAllContentRecords("categories")) {
       const option = document.createElement("option");
       option.value = String(category.id);
       option.textContent = String(category.name ?? category.id);
@@ -277,6 +294,22 @@ async function loadCategoryOptions(select: HTMLSelectElement, selected: unknown)
   } catch {
     // The save endpoint will return a field error if no category can be loaded.
   }
+}
+
+export async function loadAllContentRecords(entity: ContentEntity): Promise<ContentRecord[]> {
+  const items: ContentRecord[] = [];
+  let page = 1;
+  let totalPages = 1;
+  do {
+    const query = new URLSearchParams({ page: String(page), pageSize: "100", order: "name", direction: "asc" });
+    const response = await fetch(`/api/admin/${entity}?${query}`);
+    const body = await response.json() as { ok: boolean; data?: { items: ContentRecord[]; totalPages: number }; error?: { message?: string } };
+    if (!response.ok || !body.ok || !body.data) throw new Error(body.error?.message ?? "Unable to load content options.");
+    items.push(...body.data.items);
+    totalPages = body.data.totalPages;
+    page += 1;
+  } while (page <= totalPages);
+  return items;
 }
 
 function button(label: string, className = ""): HTMLButtonElement {

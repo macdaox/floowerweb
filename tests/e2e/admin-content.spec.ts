@@ -48,7 +48,44 @@ test("an editor creates, previews, publishes, and archives content with dirty-fo
   await page.getByRole("button", { name: "归档" }).click();
   await expect(page.locator("[data-editor-status]")).toContainText("已归档");
 
+  await page.getByRole("button", { name: "关闭编辑器" }).click();
+  await page.getByRole("searchbox").fill("e2e-bulk-category-001");
+  await page.getByRole("row", { name: /E2E Bulk Category 001/ }).getByRole("button", { name: "编辑" }).click();
+  await page.getByLabel("描述", { exact: true }).fill("Unsaved category switch");
+  await page.getByRole("searchbox").fill("e2e-bulk-category-002");
+  const secondEdit = page.getByRole("row", { name: /E2E Bulk Category 002/ }).getByRole("button", { name: "编辑" });
+
+  let dialogPromise = page.waitForEvent("dialog", { timeout: 5_000 });
+  let clickPromise = secondEdit.evaluate((button: HTMLButtonElement) => button.click());
+  let dialog = await dialogPromise;
+  expect(dialog.type()).toBe("confirm");
+  await dialog.dismiss();
+  await clickPromise;
+  await expect(page.getByLabel("描述", { exact: true })).toHaveValue("Unsaved category switch");
+
+  dialogPromise = page.waitForEvent("dialog", { timeout: 5_000 });
+  clickPromise = secondEdit.evaluate((button: HTMLButtonElement) => button.click());
+  dialog = await dialogPromise;
+  await dialog.accept();
+  await clickPromise;
+  await expect(page.getByLabel("名称")).toHaveValue("E2E Bulk Category 002");
+  await page.getByRole("button", { name: "关闭编辑器" }).click();
+
+  let leakedUnloadGuard = false;
+  const detectLeakedGuard = async (unexpected: import("@playwright/test").Dialog) => { leakedUnloadGuard = true; await unexpected.dismiss(); };
+  page.on("dialog", detectLeakedGuard);
+  await page.getByRole("link", { name: "仪表盘" }).click();
+  page.off("dialog", detectLeakedGuard);
+  await expect(page).toHaveURL(/\/admin$/);
+  expect(leakedUnloadGuard).toBe(false);
+
+  await page.goto("/admin/products");
+  await page.getByRole("button", { name: "新建产品" }).click();
+  await expect(page.getByLabel("分类", { exact: true }).locator("option", { hasText: "E2E Bulk Category 105" })).toHaveCount(1);
+  await page.getByRole("button", { name: "关闭编辑器" }).click();
+
   await page.goto("/admin/spaces");
+  await expect(page.getByLabel("分类筛选").locator("option", { hasText: "E2E Space Category 105" })).toHaveCount(1);
   await page.getByRole("button", { name: "新建案例" }).click();
   await page.getByLabel("标题", { exact: true }).fill("Unsaved lobby");
   page.once("dialog", async (dialog) => { expect(dialog.type()).toBe("beforeunload"); await dialog.dismiss(); });
@@ -56,7 +93,7 @@ test("an editor creates, previews, publishes, and archives content with dirty-fo
   await expect(page).toHaveURL(/\/admin\/spaces/);
 });
 
-test("spaces, articles, and pages support create, optimistic edit, preview, publish, and archive", async ({ page }) => {
+test("spaces, articles, and pages support lifecycle actions and surface a real optimistic edit conflict", async ({ page }) => {
   await loginAsEditor(page);
 
   await page.goto("/admin/spaces");
@@ -84,6 +121,27 @@ test("spaces, articles, and pages support create, optimistic edit, preview, publ
   await page.getByLabel("SEO 标题").fill("E2E Studio");
   await page.getByLabel("SEO 描述").fill("A browser-created modular page.");
   await saveEditPublishArchive(page, "SEO 标题", "E2E Studio Page", "E2E Studio");
+
+  await page.goto("/admin/categories");
+  await page.getByRole("button", { name: "新建分类" }).click();
+  await page.getByLabel("名称").fill("E2E Conflict Category");
+  await page.getByLabel("Slug").fill("e2e-conflict-category");
+  const createdResponse = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/api/admin/categories") && response.status() === 201);
+  await page.getByRole("button", { name: "保存草稿" }).click();
+  const created = await createdResponse;
+  const createdBody = await created.json() as { data: { id: string; updatedAt: string } };
+  const concurrentStatus = await page.evaluate(async ({ id, updatedAt }) => {
+    const response = await fetch(`/api/admin/categories/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ version: 1, updatedAt, data: { description: "Concurrent editor won." } }),
+    });
+    return response.status;
+  }, { id: createdBody.data.id, updatedAt: createdBody.data.updatedAt });
+  expect(concurrentStatus).toBe(200);
+  await page.getByLabel("描述", { exact: true }).fill("Stale local edit.");
+  await page.getByRole("button", { name: "保存草稿" }).click();
+  await expect(page.locator("[data-editor-status]")).toContainText("changed since you opened it");
 });
 
 async function saveEditPublishArchive(page: Page, editLabel: string, editValue: string, previewHeading: string): Promise<void> {

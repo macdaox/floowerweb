@@ -117,6 +117,41 @@ describe("admin content API", () => {
     expect((await mutate(productRoute, "editor", "new", { version: 1, data: { name: "No", slug: "no", productCode: "NO", categoryId: "cat", specifications: {}, locale: "zh" } })).status).toBe(422);
   });
 
+  it("does not let an edit make already-published content invalid", async () => {
+    const created = await create(productRoute, "editor", {
+      name: "Published stem", slug: "published-stem", productCode: "ES-PUBLISHED", categoryId: "cat",
+      specifications: {}, summary: "Complete summary.", body: "Complete body.",
+    });
+    const draft = (await body<{ id: string; updatedAt: string }>(created)).data;
+    const published = await mutate(productRoute, "editor", draft.id, { version: 1, action: "publish", updatedAt: draft.updatedAt });
+    const current = (await body<{ updatedAt: string }>(published)).data;
+
+    const invalidEdit = await mutate(productRoute, "editor", draft.id, {
+      version: 1, updatedAt: current.updatedAt, data: { summary: "" },
+    });
+
+    expect(invalidEdit.status).toBe(422);
+    await expect(invalidEdit.json()).resolves.toMatchObject({ error: { code: "publish_validation", fields: { summary: expect.any(String) } } });
+    expect(await database.prepare("SELECT status, summary FROM products WHERE id = ?").bind(draft.id).first()).toEqual({ status: "published", summary: "Complete summary." });
+  });
+
+  it("rolls back content when the required audit insert fails", async () => {
+    const created = await create(productRoute, "editor", {
+      name: "Atomic stem", slug: "atomic-stem", productCode: "ES-ATOMIC", categoryId: "cat", specifications: {},
+    });
+    const original = (await body<{ id: string; updatedAt: string }>(created)).data;
+    await database.prepare(`CREATE TRIGGER reject_content_audit BEFORE INSERT ON audit_logs
+      WHEN NEW.entity_id = '${original.id}' BEGIN SELECT RAISE(ABORT, 'forced audit failure'); END`).run();
+
+    const failed = await mutate(productRoute, "editor", original.id, {
+      version: 1, updatedAt: original.updatedAt, data: { name: "Mutation must roll back" },
+    });
+
+    expect(failed.status).toBe(500);
+    expect(await database.prepare("SELECT name, updated_at AS updatedAt FROM products WHERE id = ?").bind(original.id).first()).toEqual({ name: "Atomic stem", updatedAt: original.updatedAt });
+    expect((await database.prepare("SELECT COUNT(*) AS total FROM audit_logs WHERE entity_id = ?").bind(original.id).first<{ total: number }>())?.total).toBe(1);
+  });
+
   it("supports create, edit, publish, unpublish, and archive for categories, spaces, articles, and pages", async () => {
     const cases = [
       { route: categoryRoute, data: { name: "Branches", slug: "branches", description: "Architectural branches.", sortOrder: 3, seoTitle: "Branches", seoDescription: "Branch collection." }, update: { description: "Edited branches." } },
@@ -146,6 +181,14 @@ describe("admin content API", () => {
   it("validates modular page blocks and rejects expired or tampered preview tokens", async () => {
     const invalidPage = await create(pageRoute, "editor", { pageKey: "bad-page", sections: [{ type: "script", source: "alert(1)" }] });
     expect(invalidPage.status).toBe(422);
+
+    const validPage = await create(pageRoute, "editor", { pageKey: "writer-page", sections: [{ type: "hero", title: "Writer boundary" }] });
+    const stored = (await body<{ id: string; updatedAt: string }>(validPage)).data;
+    const invalidUpdate = await mutate(pageRoute, "editor", stored.id, {
+      version: 1, updatedAt: stored.updatedAt, data: { sections: [{ type: "script", source: "alert(2)" }] },
+    });
+    expect(invalidUpdate.status).toBe(422);
+    expect(await database.prepare("SELECT sections_json AS sections FROM pages WHERE id = ?").bind(stored.id).first()).toEqual({ sections: '[{"type":"hero","title":"Writer boundary"}]' });
 
     const issuedAt = Date.parse("2026-09-14T12:00:00.000Z");
     const token = await issuePreviewToken({ kind: "page", id: "page-1" }, "test-secret", issuedAt, 60);
