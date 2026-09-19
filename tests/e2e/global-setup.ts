@@ -72,8 +72,8 @@ VALUES (${sql(`e2e-bulk-space-${suffix}`)}, 'en', ${sql(`E2E Bulk Space ${suffix
   const bulkMedia = Array.from({ length: 105 }, (_, index) => {
     const suffix = String(index + 1).padStart(3, "0");
     const uuidTail = String(index + 1).padStart(12, "0");
-    return `INSERT INTO media (id, object_key, original_filename, mime_type, byte_size, alt_text, is_deleted, created_at, updated_at)
-VALUES (${sql(`e2e-bulk-media-${suffix}`)}, ${sql(`00000000-0000-4000-8000-${uuidTail}.jpg`)}, ${sql(`E2E Bulk Media ${suffix}.jpg`)}, 'image/jpeg', 10, ${sql(`E2E bulk magnolia image ${suffix}`)}, 0, '2000-01-01T00:00:00.000Z', '2000-01-01T00:00:00.000Z');`;
+    return `INSERT INTO media (id, object_key, original_filename, mime_type, byte_size, width, height, alt_text, is_deleted, created_at, updated_at)
+VALUES (${sql(`e2e-bulk-media-${suffix}`)}, ${sql(`00000000-0000-4000-8000-${uuidTail}.jpg`)}, ${sql(`E2E Bulk Media ${suffix}.jpg`)}, 'image/jpeg', 10, 900, 1124, ${sql(`E2E bulk magnolia image ${suffix}`)}, 0, '2000-01-01T00:00:00.000Z', '2000-01-01T00:00:00.000Z');`;
   }).join("\n");
   const clampMedia = Array.from({ length: 97 }, (_, index) => {
     const suffix = String(index + 1).padStart(3, "0");
@@ -87,6 +87,8 @@ INSERT INTO products (id, locale, name, slug, product_code, summary, body, speci
 VALUES ('e2e-alt-product-primary', 'en', 'E2E assignment primary', 'e2e-alt-product-primary', 'E2E-ALT-PRIMARY', 'Primary summary', 'Primary body', '{}', 'e2e-alt-category', 'e2e-bulk-media-105', 'published', ${sql(now)}, ${sql(now)});
 INSERT INTO products (id, locale, name, slug, product_code, summary, body, specifications_json, category_id, cover_media_id, status, created_at, updated_at)
 VALUES ('e2e-alt-product-related', 'en', 'E2E assignment related', 'e2e-alt-product-related', 'E2E-ALT-RELATED', 'Related summary', 'Related body', '{}', 'e2e-alt-category', 'e2e-bulk-media-104', 'published', ${sql(now)}, ${sql(now)});
+INSERT INTO products (id, locale, name, slug, product_code, summary, body, specifications_json, category_id, cover_media_id, status, created_at, updated_at)
+VALUES ('e2e-jsonld-escape', 'en', ${sql('E2E </script><script>window.__jsonLdInjected=true</script>')}, 'e2e-jsonld-escape', 'E2E-JSONLD', ${sql('Safe summary </script><script>window.__jsonLdInjected=true</script>')}, 'Structured data escaping fixture.', '{}', 'e2e-alt-category', NULL, 'published', ${sql(now)}, ${sql(now)});
 INSERT INTO product_images (id, product_id, media_id, alt_text, sort_order, is_cover, created_at)
 VALUES ('e2e-alt-product-primary-cover', 'e2e-alt-product-primary', 'e2e-bulk-media-105', 'Primary product assignment alt', 0, 1, ${sql(now)});
 INSERT INTO product_images (id, product_id, media_id, alt_text, sort_order, is_cover, created_at)

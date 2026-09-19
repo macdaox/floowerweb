@@ -22,15 +22,22 @@ test("collections expose product cards and category filtering", async ({ page })
   await expect(page.getByRole("heading", { name: /artificial flowers/i })).toBeVisible();
 });
 
-test("catalog pages provide empty and missing-record outcomes", async ({ page }) => {
+test("catalog pages provide branded missing and pagination-boundary outcomes", async ({ page }) => {
   const missing = await navigate(page, "/products/draft-product");
   expect(missing?.status()).toBe(404);
 
   const missingCategory = await navigate(page, "/collections/draft-category");
   expect(missingCategory?.status()).toBe(404);
 
-  await navigate(page, "/collections?page=2");
-  await expect(page.getByText(/no published products are available/i)).toBeVisible();
+  const outOfRange = await navigate(page, "/collections?page=999");
+  expect(outOfRange?.status()).toBe(404);
+  await expect(page.getByRole("heading", { name: /page has wandered/i })).toBeVisible();
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+
+  const categoryOutOfRange = await navigate(page, "/collections/artificial-flowers?page=999");
+  expect(categoryOutOfRange?.status()).toBe(404);
+  await expect(page.getByRole("heading", { name: /page has wandered/i })).toBeVisible();
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
 });
 
 test("product and space cards render their cover assignment alt in lists and related sections", async ({ page }) => {

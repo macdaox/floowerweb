@@ -1,5 +1,6 @@
 ---
 import type { PageBlock } from "../../features/content/schemas";
+import ResponsiveImage from "./ResponsiveImage.astro";
 
 interface Props { sections: PageBlock[]; }
 const { sections } = Astro.props;
@@ -11,14 +12,14 @@ const leadingImageIndex = sections.findIndex((section) => (section.type === "her
     case "hero": return <section class="content-hero section">
       <div><p class="eyebrow">{section.eyebrow}</p><h1>{section.title}</h1></div>
       {section.body && <p>{section.body}</p>}
-      {section.image && <figure><img src={section.image.src} alt={section.image.alt} width="1600" height="1000" sizes="100vw" loading={index === leadingImageIndex ? "eager" : "lazy"} decoding="async" fetchpriority={index === leadingImageIndex ? "high" : undefined} /></figure>}
+      {section.image && <figure><ResponsiveImage image={section.image} fallbackWidth={1600} fallbackHeight={1000} widths={[640, 1024, 1600]} sizes="100vw" loading={index === leadingImageIndex ? "eager" : "lazy"} fetchpriority={index === leadingImageIndex ? "high" : undefined} /></figure>}
     </section>;
     case "richText": return <section class="content-rich-text section">
       {section.heading && <h2>{section.heading}</h2>}
       <div>{section.document.content.map((paragraph) => <p>{paragraph.content?.map((node) => node.text).join("")}</p>)}</div>
     </section>;
     case "imageText": return <section class:list={["content-image-text", "section", section.reversed && "content-image-text-reversed"]}>
-      <figure><img src={section.image.src} alt={section.image.alt} width="1400" height="1200" sizes="(max-width: 800px) 100vw, 50vw" loading={index === leadingImageIndex ? "eager" : "lazy"} decoding="async" fetchpriority={index === leadingImageIndex ? "high" : undefined} /></figure>
+      <figure><ResponsiveImage image={section.image} fallbackWidth={1400} fallbackHeight={1200} widths={[480, 800, 1400]} sizes="(max-width: 800px) 100vw, 50vw" loading={index === leadingImageIndex ? "eager" : "lazy"} fetchpriority={index === leadingImageIndex ? "high" : undefined} /></figure>
       <div><p class="eyebrow">{section.eyebrow}</p><h2>{section.title}</h2><p>{section.body}</p></div>
     </section>;
     case "capabilities": return <section class="content-capabilities section">

@@ -1,12 +1,15 @@
 ---
 import ProductCard from "../../components/public/ProductCard.astro";
+import NotFoundState from "../../components/public/NotFoundState.astro";
 import { breadcrumbData } from "../../components/public/structured-data";
 import PublicLayout from "../../layouts/PublicLayout.astro";
 import { getPreviewCategoryById, getPublishedCategoryBySlug, listPublishedCategories, listPublishedProducts, previewCatalog } from "../../features/catalog/service";
 import { resolvePreviewSecret, verifyPreviewToken } from "../../features/admin-content/preview";
+import { resolvePublicSiteOrigin } from "../../features/public/site-origin";
 
 const slug = Astro.params.category ?? "";
 const db = Astro.locals.runtime?.env?.DB;
+const publicOrigin = resolvePublicSiteOrigin(Astro.locals.runtime?.env?.PUBLIC_SITE_URL);
 const requestedPage = Number.parseInt(Astro.url.searchParams.get("page") ?? "1", 10);
 const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
 const previewCategory = previewCatalog.categories.find((candidate) => candidate.slug === slug) ?? null;
@@ -17,14 +20,15 @@ if (claims) Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow");
 const [category, categories, products] = db
   ? await Promise.all([claims ? getPreviewCategoryById(db, "en", claims.id, slug) : getPublishedCategoryBySlug(db, "en", slug), listPublishedCategories(db, "en"), listPublishedProducts(db, { locale: "en", categorySlug: slug, page })])
   : [previewCategory, previewCatalog.categories, { items: previewCatalog.products.filter((product) => product.category.slug === slug), page: 1, pageSize: 24 as const, total: previewCatalog.products.filter((product) => product.category.slug === slug).length, totalPages: 1 }];
-if (!category) Astro.response.status = 404;
-const title = category ? `${category.name}${page > 1 ? ` — Page ${page}` : ""} | EVERSTEM` : "Collection not found | EVERSTEM";
-const description = category ? `${category.description}${page > 1 ? ` Page ${page}.` : ""}` : "The requested EVERSTEM collection is unavailable.";
+const outOfRange = Boolean(category) && page > products.totalPages;
+if (!category || outOfRange) Astro.response.status = 404;
+const title = outOfRange ? "Page not found | EVERSTEM" : category ? `${category.name}${page > 1 ? ` — Page ${page}` : ""} | EVERSTEM` : "Collection not found | EVERSTEM";
+const description = outOfRange ? "The requested EVERSTEM page could not be found." : category ? `${category.description}${page > 1 ? ` Page ${page}.` : ""}` : "The requested EVERSTEM collection is unavailable.";
 const canonical = page > 1 ? `/collections/${slug}?page=${page}` : `/collections/${slug}`;
 ---
 
-<PublicLayout title={title} description={description} socialImage={category?.image?.src} socialImageAlt={category?.image?.alt} canonical={canonical} noindex={!category || Boolean(claims)} structuredData={category ? [breadcrumbData(Astro.url.origin, [{ name: "Home", path: "/" }, { name: "Collections", path: "/collections" }, { name: category.name, path: canonical }])] : []}>
-  {category ? <>
+<PublicLayout title={title} description={description} socialImage={category?.image?.src} socialImageAlt={category?.image?.alt} canonical={canonical} noindex={!category || outOfRange || Boolean(claims)} structuredData={category && !outOfRange ? [breadcrumbData(publicOrigin, [{ name: "Home", path: "/" }, { name: "Collections", path: "/collections" }, { name: category.name, path: canonical }])] : []}>
+  {outOfRange ? <NotFoundState /> : category ? <>
   <section class="catalog-hero section">
     <p class="eyebrow">Collection</p>
     <h1>{category.name}</h1>

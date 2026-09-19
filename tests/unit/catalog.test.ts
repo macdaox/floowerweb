@@ -32,9 +32,9 @@ const rows: QueryRows = {
     id: "product-magnolia", name: "Magnolia stem", slug: "magnolia-stem", product_code: "ES-MAG-001",
     summary: "A sculptural artificial magnolia stem.", body: "Layered petals bring quiet presence.",
     specifications_json: '{"material":"Textile","stem":"Wired"}', category_name: "Artificial flowers", category_slug: "artificial-flowers",
-    seo_title: "Magnolia stem | EVERSTEM", seo_description: "Magnolia for trade.", original_filename: "everstem-magnolia-v2.jpg", alt_text: "Magnolia arrangement",
+    seo_title: "Magnolia stem | EVERSTEM", seo_description: "Magnolia for trade.", original_filename: "everstem-magnolia-v2.jpg", alt_text: "Magnolia arrangement", width: 900, height: 1124,
   },
-  images: [{ original_filename: "detail-macro.png", alt_text: "Magnolia petal detail" }],
+  images: [{ original_filename: "detail-macro.png", alt_text: "Magnolia petal detail", width: 1316, height: 783 }],
   related: [{ name: "Related stem", slug: "related-stem", summary: "Related product", category_name: "Artificial flowers", category_slug: "artificial-flowers", original_filename: "collection-flowers.png", alt_text: "Related stem" }],
   cards: [{ name: "Magnolia stem", slug: "magnolia-stem", summary: "A sculptural artificial magnolia stem.", category_name: "Artificial flowers", category_slug: "artificial-flowers", original_filename: "everstem-magnolia-v2.jpg", alt_text: "Magnolia arrangement" }],
   total: 1,
@@ -50,8 +50,8 @@ describe("catalog service", () => {
       specifications: [{ label: "Material", value: "Textile" }, { label: "Stem", value: "Wired" }],
     });
     expect(product?.images).toEqual([
-      { src: "/assets/everstem-magnolia-v2.jpg", alt: "Magnolia arrangement" },
-      { src: "/assets/detail-macro.png", alt: "Magnolia petal detail" },
+      { src: "/assets/everstem-magnolia-v2.jpg", alt: "Magnolia arrangement", width: 900, height: 1124 },
+      { src: "/assets/detail-macro.png", alt: "Magnolia petal detail", width: 1316, height: 783 },
     ]);
     expect(product?.relatedProducts).toHaveLength(1);
     expect(product).not.toHaveProperty("price");

@@ -1,5 +1,6 @@
 ---
 export interface Props {
+  origin: string;
   title: string;
   description: string;
   canonical?: string;
@@ -10,6 +11,7 @@ export interface Props {
 }
 
 const {
+  origin,
   title,
   description,
   canonical = Astro.url.pathname,
@@ -18,9 +20,9 @@ const {
   type = "website",
   noindex = false,
 } = Astro.props;
-const canonicalUrl = new URL(canonical, Astro.url.origin);
+const canonicalUrl = new URL(canonical, origin);
 canonicalUrl.hash = "";
-const socialImageUrl = socialImage ? new URL(socialImage, Astro.url.origin) : undefined;
+const socialImageUrl = socialImage ? new URL(socialImage, origin) : undefined;
 ---
 
 <meta name="description" content={description} />

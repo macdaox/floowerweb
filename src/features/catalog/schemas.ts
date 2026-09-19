@@ -3,6 +3,8 @@ import { publicMediaUrl } from "../media/schemas";
 export interface CatalogImage {
   src: string;
   alt: string;
+  width?: number;
+  height?: number;
 }
 
 export interface CatalogCategory {
@@ -47,7 +49,10 @@ export const PUBLIC_PAGE_SIZE = 24 as const;
 
 export function mediaFromRow(row: Record<string, unknown>): CatalogImage | undefined {
   const src = publicMediaUrl(row);
-  return src ? { src, alt: text(row.alt_text) || "EVERSTEM botanical object" } : undefined;
+  if (!src) return undefined;
+  const width = dimension(row.width);
+  const height = dimension(row.height);
+  return { src, alt: text(row.alt_text) || "EVERSTEM botanical object", ...(width && height ? { width, height } : {}) };
 }
 
 export function specificationsFromJson(value: unknown): Specification[] {
@@ -69,4 +74,9 @@ export function text(value: unknown): string {
 
 function humanize(value: string): string {
   return value.replace(/([A-Z])/g, " $1").replaceAll("_", " ").replace(/^./, (first) => first.toUpperCase());
+}
+
+function dimension(value: unknown): number | undefined {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }

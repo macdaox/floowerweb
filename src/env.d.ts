@@ -6,6 +6,8 @@ export interface RuntimeEnv {
   DB: D1Database;
   MEDIA: R2Bucket;
   MEDIA_MAX_BYTES?: string;
+  PUBLIC_SITE_URL?: string;
+  PUBLIC_IMAGE_RESIZING_ORIGIN?: string;
   SESSION_SECRET: string;
 }
 

@@ -1,0 +1,60 @@
+---
+import { dynamicImageAttributes } from "../../features/media/responsive";
+
+interface Props {
+  image: { src: string; alt: string; width?: number; height?: number };
+  fallbackWidth: number;
+  fallbackHeight: number;
+  widths: number[];
+  sizes: string;
+  loading: "eager" | "lazy";
+  fetchpriority?: "high" | "low" | "auto";
+  class?: string;
+}
+
+const { image, fallbackWidth, fallbackHeight, widths, sizes, loading, fetchpriority, class: className } = Astro.props;
+const bundledVariants: Record<string, { src: string; width: number; height: number; srcset: string }> = {
+  "/assets/collection-branches.png": variant("collection-branches", "png", 566, 668, [320]),
+  "/assets/collection-flowers.png": variant("collection-flowers", "png", 440, 668, [320]),
+  "/assets/craft-process.png": variant("craft-process", "png", 1487, 515, [640, 1024]),
+  "/assets/detail-macro.png": variant("detail-macro", "png", 1316, 783, [480, 800]),
+  "/assets/everstem-detail-v2.jpg": variant("everstem-detail-v2", "jpg", 1280, 853, [480, 800]),
+  "/assets/everstem-hero-magnolia-v3.png": variant("everstem-hero-magnolia-v3", "png", 1536, 1024, [640, 1024]),
+  "/assets/everstem-journal-v2.jpg": variant("everstem-journal-v2", "jpg", 1280, 800, [480, 800]),
+  "/assets/everstem-magnolia-v2.jpg": variant("everstem-magnolia-v2", "jpg", 900, 1124, [320, 640]),
+  "/assets/everstem-spaces-v2.jpg": variant("everstem-spaces-v2", "jpg", 1400, 788, [640, 1024]),
+  "/assets/hero-tree.png": variant("hero-tree", "png", 820, 941, [480]),
+  "/assets/journal-imperfection.png": variant("journal-imperfection", "png", 446, 434, [320]),
+  "/assets/spaces-residential.png": variant("spaces-residential", "png", 980, 654, [480]),
+  "/assets/trade-installation.png": variant("trade-installation", "png", 892, 887, [480]),
+};
+const attributes = bundledVariants[image.src] ?? dynamicImageAttributes(image, {
+    fallbackWidth,
+    fallbackHeight,
+    widths,
+    resizingOrigin: Astro.locals.runtime?.env?.PUBLIC_IMAGE_RESIZING_ORIGIN,
+  });
+
+function variant(name: string, extension: string, width: number, height: number, candidates: number[]) {
+  const src = `/assets/${name}.${extension}`;
+  return {
+    src,
+    width,
+    height,
+    srcset: [...candidates.map((candidate) => `/assets/responsive/${name}-${candidate}.${extension} ${candidate}w`), `${src} ${width}w`].join(", "),
+  };
+}
+---
+
+<img
+  src={attributes.src}
+  srcset={attributes.srcset}
+  alt={image.alt}
+  width={attributes.width}
+  height={attributes.height}
+  sizes={sizes}
+  loading={loading}
+  decoding="async"
+  fetchpriority={fetchpriority}
+  class={className}
+/>

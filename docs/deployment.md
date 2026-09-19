@@ -1,0 +1,5 @@
+# Deployment configuration
+
+`PUBLIC_SITE_URL` is required outside local Astro development. Set it to the one public HTTPS origin for the deployment, with no path, query, fragment, or credentials (for example, `https://www.example.com`). Canonical links, Open Graph URLs, structured data, `robots.txt`, and the sitemap all use this value and never infer an origin from the request host. Missing or invalid production configuration fails closed. Local `astro dev` alone uses the documented `http://127.0.0.1:4321` fallback.
+
+`PUBLIC_IMAGE_RESIZING_ORIGIN` is optional. Set it only when Cloudflare Image Resizing is enabled on that HTTPS origin and `/media/*` is reachable through the same zone. When set, dynamic R2 media receives `/cdn-cgi/image/...` width candidates; when absent, the original controlled media URL is served without a `srcset`. The site does not require this paid/optional capability to launch. Bundled site imagery uses checked-in generated width variants under `public/assets/responsive/`.

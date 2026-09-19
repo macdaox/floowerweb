@@ -3,6 +3,8 @@ import { publicMediaUrl } from "../media/schemas";
 export interface ContentImage {
   src: string;
   alt: string;
+  width?: number;
+  height?: number;
 }
 
 export interface RichTextDocument {
@@ -77,7 +79,10 @@ export function serializePageBlocks(value: unknown): string {
 
 export function contentImageFromRow(row: Record<string, unknown>): ContentImage | undefined {
   const src = publicMediaUrl(row);
-  return src ? { src, alt: text(row.alt_text) || "EVERSTEM botanical object" } : undefined;
+  if (!src) return undefined;
+  const width = dimension(row.width);
+  const height = dimension(row.height);
+  return { src, alt: text(row.alt_text) || "EVERSTEM botanical object", ...(width && height ? { width, height } : {}) };
 }
 
 export function text(value: unknown): string {
@@ -130,3 +135,4 @@ function safeImageSrc(value: string): boolean { return value.startsWith("/assets
 function requiredText(value: unknown, label: string): string { if (typeof value !== "string" || !value.trim() || value.length > 4_000) throw new Error(`Invalid ${label}`); return value; }
 function optionalText(value: unknown): string | undefined { return typeof value === "string" && value.trim() && value.length <= 4_000 ? value : undefined; }
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
+function dimension(value: unknown): number | undefined { const parsed = typeof value === "number" ? value : Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined; }

@@ -1,12 +1,13 @@
 import type { APIRoute } from "astro";
 import { listPublishedCategories, listPublishedProducts, previewCatalog } from "../features/catalog/service";
 import { getPublishedPage, listPublishedArticles, listPublishedSpaces, previewArticles, previewPages, previewSpaces } from "../features/content/service";
+import { resolvePublicSiteOrigin } from "../features/public/site-origin";
 
 const fixedPaths = ["/", "/collections", "/spaces", "/journal"] as const;
 const editablePageKeys = ["about", "contact", "wholesale", "privacy", "terms"] as const;
 
-export const GET: APIRoute = async ({ locals, request }) => {
-  const origin = new URL(request.url).origin;
+export const GET: APIRoute = async ({ locals }) => {
+  const origin = resolvePublicSiteOrigin(locals.runtime?.env?.PUBLIC_SITE_URL);
   const db = locals.runtime?.env?.DB;
   const paths = db ? await publishedPaths(db) : previewPaths();
   const urls = [...new Set([...fixedPaths, ...paths])].sort();

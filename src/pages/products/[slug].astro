@@ -1,14 +1,17 @@
 ---
 import ProductCard from "../../components/public/ProductCard.astro";
+import ResponsiveImage from "../../components/public/ResponsiveImage.astro";
 import { selectGalleryImage } from "../../components/public/ProductGallery";
 import { productInquiryFields } from "../../components/public/ProductInquiryForm";
 import { breadcrumbData, productData } from "../../components/public/structured-data";
 import PublicLayout from "../../layouts/PublicLayout.astro";
 import { getPreviewProductById, getPublishedProductBySlug, previewProduct } from "../../features/catalog/service";
 import { resolvePreviewSecret, verifyPreviewToken } from "../../features/admin-content/preview";
+import { resolvePublicSiteOrigin } from "../../features/public/site-origin";
 
 const slug = Astro.params.slug ?? "";
 const db = Astro.locals.runtime?.env?.DB;
+const publicOrigin = resolvePublicSiteOrigin(Astro.locals.runtime?.env?.PUBLIC_SITE_URL);
 const token = Astro.url.searchParams.get("preview");
 const previewSecret = resolvePreviewSecret(Astro.locals.runtime?.env?.SESSION_SECRET);
 const claims = db && token && previewSecret ? await verifyPreviewToken(token, previewSecret, "product") : null;
@@ -21,8 +24,8 @@ const selectedImage = product ? selectGalleryImage(product.images, 0) : undefine
 const galleryImages = product && selectedImage ? [selectedImage, ...product.images.filter((image) => image.src !== selectedImage.src)] : [];
 const inquiry = product ? productInquiryFields(product.id, product.name, Astro.url.pathname) : null;
 const structuredData = product ? [
-  productData(Astro.url.origin, product),
-  breadcrumbData(Astro.url.origin, [
+  productData(publicOrigin, product),
+  breadcrumbData(publicOrigin, [
     { name: "Home", path: "/" },
     { name: "Collections", path: "/collections" },
     { name: product.category.name, path: `/collections/${product.category.slug}` },
@@ -36,7 +39,7 @@ const structuredData = product ? [
   <article>
     <section class="product-detail section">
       <div class="product-gallery" aria-label={`${product.name} gallery`} data-product-gallery>
-        {galleryImages.length ? <>{galleryImages.map((image, index) => <figure id={`image-${index}`} data-gallery-item aria-label={`Image ${index + 1} of ${galleryImages.length}`} tabindex={index === 0 ? "0" : "-1"}><img src={image.src} alt={image.alt} width="1400" height="1750" sizes="(max-width: 800px) 100vw, 58vw" loading={index === 0 ? "eager" : "lazy"} decoding="async" fetchpriority={index === 0 ? "high" : undefined} /><figcaption class="visually-hidden">Image {index + 1} of {galleryImages.length}</figcaption></figure>)}</> : <div class="gallery-empty">Product imagery will be available shortly.</div>}
+        {galleryImages.length ? <>{galleryImages.map((image, index) => <figure id={`image-${index}`} data-gallery-item aria-label={`Image ${index + 1} of ${galleryImages.length}`} tabindex={index === 0 ? "0" : "-1"}><ResponsiveImage image={image} fallbackWidth={1400} fallbackHeight={1750} widths={[480, 800, 1400]} sizes="(max-width: 800px) 100vw, 58vw" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : undefined} /><figcaption class="visually-hidden">Image {index + 1} of {galleryImages.length}</figcaption></figure>)}</> : <div class="gallery-empty">Product imagery will be available shortly.</div>}
       </div>
       <div class="product-copy">
         <p class="eyebrow"><a href={`/collections/${product.category.slug}`}>{product.category.name}</a></p>

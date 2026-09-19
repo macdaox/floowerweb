@@ -1,5 +1,6 @@
 ---
 import type { SpaceCard as SpaceCardData } from "../../features/content/schemas";
+import ResponsiveImage from "./ResponsiveImage.astro";
 
 interface Props { space: SpaceCardData; }
 const { space } = Astro.props;
@@ -7,7 +8,7 @@ const { space } = Astro.props;
 
 <article class="space-card">
   <a href={`/spaces/${space.slug}`} aria-label={`View ${space.title}`}>
-    {space.image && <img src={space.image.src} alt={space.image.alt} width="1200" height="900" sizes="(max-width: 800px) 100vw, 50vw" loading="lazy" decoding="async" />}
+    {space.image && <ResponsiveImage image={space.image} fallbackWidth={1200} fallbackHeight={900} widths={[480, 800, 1200]} sizes="(max-width: 800px) 100vw, 50vw" loading="lazy" />}
     <p class="eyebrow">{space.category}{space.location && ` · ${space.location}`}</p>
     <h2>{space.title}</h2>
     {space.summary && <p>{space.summary}</p>}

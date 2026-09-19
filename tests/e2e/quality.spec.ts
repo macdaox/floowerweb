@@ -19,6 +19,7 @@ const representativeRoutes = [
 test("public pages expose unique canonical metadata and valid structured data", async ({ page }) => {
   const seenTitles = new Set<string>();
   const seenCanonicals = new Set<string>();
+  const seenDescriptions = new Set<string>();
 
   for (const route of representativeRoutes) {
     await page.goto(route);
@@ -28,8 +29,11 @@ test("public pages expose unique canonical metadata and valid structured data", 
     expect(seenTitles, `${route} has a duplicate title`).not.toContain(title);
     expect(canonical, route).toBe(new URL(route, "http://127.0.0.1:4321").href);
     expect(seenCanonicals, `${route} has a duplicate canonical`).not.toContain(canonical);
-    expect(await page.locator('meta[name="description"]').getAttribute("content"), route).not.toBe("");
+    const description = await page.locator('meta[name="description"]').getAttribute("content");
+    expect(description, route).not.toBe("");
+    expect(seenDescriptions, `${route} has a duplicate description`).not.toContain(description);
     await expect(page.locator('meta[property="og:title"]'), route).toHaveAttribute("content", title);
+    await expect(page.locator('meta[property="og:description"]'), route).toHaveAttribute("content", description!);
     await expect(page.locator('meta[property="og:url"]'), route).toHaveAttribute("content", canonical!);
 
     const structuredData = page.locator('script[type="application/ld+json"]');
@@ -38,6 +42,7 @@ test("public pages expose unique canonical metadata and valid structured data", 
     expect(() => JSON.parse(serializedStructuredData), route).not.toThrow();
     seenTitles.add(title);
     seenCanonicals.add(canonical!);
+    seenDescriptions.add(description!);
   }
 
   await page.goto("/products/magnolia-stem");
@@ -47,13 +52,11 @@ test("public pages expose unique canonical metadata and valid structured data", 
   await page.goto("/journal/material-and-color-development");
   expect(await page.locator('script[type="application/ld+json"]').textContent()).toContain('"@type":"Article"');
 
-  await page.goto("/collections");
-  const firstPageTitle = await page.title();
-  const firstPageDescription = await page.locator('meta[name="description"]').getAttribute("content");
-  await page.goto("/collections?page=2");
-  expect(await page.title()).not.toBe(firstPageTitle);
-  expect(await page.locator('meta[name="description"]').getAttribute("content")).not.toBe(firstPageDescription);
-  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "http://127.0.0.1:4321/collections?page=2");
+  const hostile = await page.request.get("/products/magnolia-stem", { headers: { Host: "attacker.localhost:4321" } });
+  const hostileHtml = await hostile.text();
+  expect(hostile.status()).toBe(200);
+  expect(hostileHtml).toContain('href="http://127.0.0.1:4321/products/magnolia-stem"');
+  expect(hostileHtml).not.toContain("attacker.localhost");
 });
 
 test("robots and sitemap expose only indexable published pages", async ({ request }) => {
@@ -76,6 +79,25 @@ test("robots and sitemap expose only indexable published pages", async ({ reques
   expect(xml).not.toContain("draft-product");
   expect(xml).not.toContain("/admin");
   expect(xml).not.toContain("/preview");
+
+  const hostileRobots = await request.get("/robots.txt", { headers: { Host: "attacker.localhost:4321" } });
+  expect(await hostileRobots.text()).toContain("Sitemap: http://127.0.0.1:4321/sitemap.xml");
+  expect(await hostileRobots.text()).not.toContain("attacker.localhost");
+  const hostileSitemap = await request.get("/sitemap.xml", { headers: { Host: "attacker.localhost:4321" } });
+  expect(await hostileSitemap.text()).toContain("<loc>http://127.0.0.1:4321/");
+  expect(await hostileSitemap.text()).not.toContain("attacker.localhost");
+});
+
+test("structured data escapes hostile published content without closing its script", async ({ page }) => {
+  await page.goto("/products/e2e-jsonld-escape");
+  const structuredData = page.locator('script[type="application/ld+json"]');
+  await expect(structuredData).toHaveCount(1);
+  const serialized = (await structuredData.textContent()) ?? "";
+  expect(serialized).not.toContain("</script>");
+  expect(JSON.parse(serialized)).toMatchObject({
+    "@graph": expect.arrayContaining([expect.objectContaining({ "@type": "Product", name: expect.stringContaining("</script>") })]),
+  });
+  expect(await page.evaluate(() => (window as Window & { __jsonLdInjected?: boolean }).__jsonLdInjected)).toBeUndefined();
 });
 
 test("missing and server-error pages retain the EVERSTEM shell", async ({ page }) => {
@@ -92,7 +114,7 @@ test("missing and server-error pages retain the EVERSTEM shell", async ({ page }
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
 });
 
-test("public imagery reserves space, supplies responsive hints, and prioritizes only leading media", async ({ page }) => {
+test("public imagery reserves space, supplies real responsive sources, and prioritizes only leading media", async ({ page, request }) => {
   for (const route of ["/", "/products/magnolia-stem", "/spaces/hospitality-botanicals", "/journal/material-and-color-development"]) {
     await page.goto(route);
     const images = page.locator("main img");
@@ -105,6 +127,20 @@ test("public imagery reserves space, supplies responsive hints, and prioritizes 
     }
     expect(await page.locator('main img[fetchpriority="high"]').count(), `${route} leading image priority`).toBe(1);
   }
+
+  await page.goto("/");
+  const responsiveImage = page.locator("main img[srcset]").first();
+  await expect(responsiveImage).toBeVisible();
+  const candidates = ((await responsiveImage.getAttribute("srcset")) ?? "").split(",").map((candidate) => candidate.trim().split(/\s+/)[0]);
+  expect(new Set(candidates).size).toBeGreaterThan(1);
+  for (const candidate of candidates) {
+    const response = await request.get(candidate);
+    expect(response.status(), candidate).toBe(200);
+  }
+
+  await page.goto("/products/e2e-alt-product-primary");
+  await expect(page.locator(".product-gallery img").first()).toHaveAttribute("width", "900");
+  await expect(page.locator(".product-gallery img").first()).toHaveAttribute("height", "1124");
 });
 
 test("invalid form responses preserve values and move focus to the first field in error", async ({ page }) => {

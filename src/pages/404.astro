@@ -1,14 +1,10 @@
 ---
 import PublicLayout from "../layouts/PublicLayout.astro";
+import NotFoundState from "../components/public/NotFoundState.astro";
 
 Astro.response.status = 404;
 ---
 
 <PublicLayout title="Page not found | EVERSTEM" description="The requested EVERSTEM page could not be found." canonical={Astro.url.pathname} noindex>
-  <section class="empty-state section">
-    <p class="eyebrow">404 · Not found</p>
-    <h1>This page has wandered.</h1>
-    <p>The page you requested is no longer here. Return to our collections and continue exploring.</p>
-    <a class="button button-primary" href="/">Return home</a>
-  </section>
+  <NotFoundState />
 </PublicLayout>

@@ -1,5 +1,6 @@
 ---
 import type { ProductCard as ProductCardData } from "../../features/catalog/schemas";
+import ResponsiveImage from "./ResponsiveImage.astro";
 
 interface Props { product: ProductCardData; }
 const { product } = Astro.props;
@@ -7,7 +8,7 @@ const { product } = Astro.props;
 
 <article class="product-card">
   <a href={`/products/${product.slug}`} aria-label={`View ${product.name}`}>
-    {product.image && <img src={product.image.src} alt={product.image.alt} width="1000" height="1250" sizes="(max-width: 639px) 50vw, (max-width: 800px) 50vw, 33vw" loading="lazy" decoding="async" />}
+    {product.image && <ResponsiveImage image={product.image} fallbackWidth={1000} fallbackHeight={1250} widths={[320, 640, 1000]} sizes="(max-width: 639px) 50vw, (max-width: 800px) 50vw, 33vw" loading="lazy" />}
     <p class="eyebrow">{product.category.name}</p>
     <h2>{product.name}</h2>
     {product.summary && <p>{product.summary}</p>}

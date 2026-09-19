@@ -1,21 +1,27 @@
 ---
 import ProductCard from "../../components/public/ProductCard.astro";
+import NotFoundState from "../../components/public/NotFoundState.astro";
 import { breadcrumbData } from "../../components/public/structured-data";
 import PublicLayout from "../../layouts/PublicLayout.astro";
 import { listPublishedCategories, listPublishedProducts, previewCatalog } from "../../features/catalog/service";
+import { resolvePublicSiteOrigin } from "../../features/public/site-origin";
 
 const db = Astro.locals.runtime?.env?.DB;
+const publicOrigin = resolvePublicSiteOrigin(Astro.locals.runtime?.env?.PUBLIC_SITE_URL);
 const requestedPage = Number.parseInt(Astro.url.searchParams.get("page") ?? "1", 10);
 const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
 const [categories, products] = db
   ? await Promise.all([listPublishedCategories(db, "en"), listPublishedProducts(db, { locale: "en", page })])
   : [previewCatalog.categories, { items: previewCatalog.products, page: 1, pageSize: 24 as const, total: previewCatalog.products.length, totalPages: 1 }];
-const title = page > 1 ? `Collections — Page ${page} | EVERSTEM` : "Collections | EVERSTEM";
-const description = page > 1 ? `Artificial botanical collections for wholesale buyers. Page ${page}.` : "Artificial botanical collections for wholesale buyers.";
+const outOfRange = page > products.totalPages;
+if (outOfRange) Astro.response.status = 404;
+const title = outOfRange ? "Page not found | EVERSTEM" : page > 1 ? `Collections — Page ${page} | EVERSTEM` : "Collections | EVERSTEM";
+const description = outOfRange ? "The requested EVERSTEM page could not be found." : page > 1 ? `Artificial botanical collections for wholesale buyers. Page ${page}.` : "Artificial botanical collections for wholesale buyers.";
 const canonical = page > 1 ? `/collections?page=${page}` : "/collections";
 ---
 
-<PublicLayout title={title} description={description} canonical={canonical} structuredData={[breadcrumbData(Astro.url.origin, [{ name: "Home", path: "/" }, { name: "Collections", path: canonical }])]}>
+<PublicLayout title={title} description={description} canonical={canonical} noindex={outOfRange} structuredData={outOfRange ? [] : [breadcrumbData(publicOrigin, [{ name: "Home", path: "/" }, { name: "Collections", path: canonical }])]}>
+  {outOfRange ? <NotFoundState /> : <>
   <section class="catalog-hero section">
     <p class="eyebrow">Wholesale collections</p>
     <h1>Botanical<br />collections.</h1>
@@ -30,4 +36,5 @@ const canonical = page > 1 ? `/collections?page=${page}` : "/collections";
     {products.items.length ? <div class="product-grid">{products.items.map((product) => <ProductCard product={product} />)}</div> : <p class="catalog-empty">No published products are available in this collection yet.</p>}
     {products.totalPages > 1 && <nav class="pagination" aria-label="Product pages">{products.page > 1 && <a href={`/collections?page=${products.page - 1}`}>Previous</a>}<span>Page {products.page} of {products.totalPages}</span>{products.page < products.totalPages && <a href={`/collections?page=${products.page + 1}`}>Next</a>}</nav>}
   </section>
+  </>}
 </PublicLayout>

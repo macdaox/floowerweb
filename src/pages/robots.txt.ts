@@ -1,7 +1,8 @@
 import type { APIRoute } from "astro";
+import { resolvePublicSiteOrigin } from "../features/public/site-origin";
 
-export const GET: APIRoute = ({ request }) => {
-  const origin = new URL(request.url).origin;
+export const GET: APIRoute = ({ locals }) => {
+  const origin = resolvePublicSiteOrigin(locals.runtime?.env?.PUBLIC_SITE_URL);
   const body = [
     "User-agent: *",
     "Allow: /",

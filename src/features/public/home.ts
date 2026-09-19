@@ -1,7 +1,7 @@
 import { parseStoredPageBlocks } from "../content/schemas";
 import { publicMediaUrl } from "../media/schemas";
 
-export interface HomeMedia { src: string; alt: string; }
+export interface HomeMedia { src: string; alt: string; width?: number; height?: number; }
 export interface HomeCategory { name: string; slug: string; description: string; image?: HomeMedia; }
 export interface HomeProduct { name: string; slug: string; summary: string; categorySlug: string; }
 export interface HomeSpace { title: string; slug: string; category: string; summary: string; image?: HomeMedia; }
@@ -23,10 +23,10 @@ export async function loadHomeContent(binding?: D1Database): Promise<HomeContent
   if (!binding) return fallbackHomeContent;
   const [pageRead, categoriesRead, productsRead, spaceRead, articlesRead, settingsRead] = await Promise.all([
     safely(() => binding.prepare("SELECT sections_json, seo_title, seo_description FROM pages WHERE page_key = 'home' AND locale = 'en' AND status = 'published' LIMIT 1").first<Row>()),
-    safely(() => binding.prepare(`SELECT c.name, c.slug, c.description, m.object_key, m.original_filename, m.alt_text FROM categories c LEFT JOIN media m ON m.id = c.cover_media_id WHERE c.locale = 'en' AND c.status = 'published' ORDER BY c.sort_order, c.name`).all<Row>()),
+    safely(() => binding.prepare(`SELECT c.name, c.slug, c.description, m.object_key, m.original_filename, m.width, m.height, m.alt_text FROM categories c LEFT JOIN media m ON m.id = c.cover_media_id WHERE c.locale = 'en' AND c.status = 'published' ORDER BY c.sort_order, c.name`).all<Row>()),
     safely(() => binding.prepare(`SELECT p.name, p.slug, p.summary, c.slug AS category_slug FROM products p JOIN categories c ON c.id = p.category_id WHERE p.locale = 'en' AND p.status = 'published' ORDER BY c.sort_order, p.name`).all<Row>()),
-    safely(() => binding.prepare(`SELECT s.title, s.slug, s.category, s.summary, m.object_key, m.original_filename, m.alt_text FROM spaces s LEFT JOIN media m ON m.id = s.cover_media_id WHERE s.locale = 'en' AND s.status = 'published' ORDER BY s.updated_at DESC LIMIT 1`).first<Row>()),
-    safely(() => binding.prepare(`SELECT a.title, a.slug, m.object_key, m.original_filename, m.alt_text FROM articles a LEFT JOIN media m ON m.id = a.cover_media_id WHERE a.locale = 'en' AND a.status = 'published' ORDER BY a.published_at DESC LIMIT 3`).all<Row>()),
+    safely(() => binding.prepare(`SELECT s.title, s.slug, s.category, s.summary, m.object_key, m.original_filename, m.width, m.height, m.alt_text FROM spaces s LEFT JOIN media m ON m.id = s.cover_media_id WHERE s.locale = 'en' AND s.status = 'published' ORDER BY s.updated_at DESC LIMIT 1`).first<Row>()),
+    safely(() => binding.prepare(`SELECT a.title, a.slug, m.object_key, m.original_filename, m.width, m.height, m.alt_text FROM articles a LEFT JOIN media m ON m.id = a.cover_media_id WHERE a.locale = 'en' AND a.status = 'published' ORDER BY a.published_at DESC LIMIT 3`).all<Row>()),
     safely(() => binding.prepare("SELECT company_name, tagline, instagram_url, pinterest_url, linkedin_url, default_seo_title, default_seo_description FROM settings WHERE id = 'site' LIMIT 1").first<Row>()),
   ]);
   const page = pageRead.failed ? undefined : pageRead.value;
@@ -56,12 +56,19 @@ function productFrom(row: Row): HomeProduct { return { name: text(row.name), slu
 function spaceFrom(row: Row | null): HomeSpace | undefined { if (!row) return undefined; const space = { title: text(row.title), slug: text(row.slug), category: text(row.category), summary: text(row.summary), image: rowMedia(row) }; return space.title && space.slug ? space : undefined; }
 function articleFrom(row: Row, index: number): HomeArticle { return { title: text(row.title), slug: text(row.slug), category: ["Material development", "Display design", "Commercial space"][index] ?? "Journal", readTime: ["4 min", "7 min", "5 min"][index] ?? "5 min", image: rowMedia(row) }; }
 function settingsFrom(row: Row | null): HomeContent["settings"] { return { companyName: text(row?.company_name), tagline: text(row?.tagline), instagramUrl: optionalText(row?.instagram_url), pinterestUrl: optionalText(row?.pinterest_url), linkedinUrl: optionalText(row?.linkedin_url) }; }
-function rowMedia(row: Row | null): HomeMedia | undefined { const src = row ? publicMediaUrl(row) : undefined; return src ? { src, alt: text(row?.alt_text) || "EVERSTEM botanical object" } : undefined; }
+function rowMedia(row: Row | null): HomeMedia | undefined {
+  const src = row ? publicMediaUrl(row) : undefined;
+  if (!src) return undefined;
+  const width = dimension(row?.width);
+  const height = dimension(row?.height);
+  return { src, alt: text(row?.alt_text) || "EVERSTEM botanical object", ...(width && height ? { width, height } : {}) };
+}
 function isCategory(category: HomeCategory): boolean { return Boolean(category.name && category.slug); }
 function isProduct(product: HomeProduct): boolean { return Boolean(product.name && product.slug && product.categorySlug); }
 function isArticle(article: HomeArticle): boolean { return Boolean(article.title && article.slug); }
 function text(value: unknown): string { return typeof value === "string" ? value : ""; }
 function optionalText(value: unknown): string | undefined { const result = text(value); return result || undefined; }
+function dimension(value: unknown): number | undefined { const parsed = typeof value === "number" ? value : Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined; }
 
 const fallbackHomeContent: HomeContent = {
   seo: { title: "EVERSTEM | Artificial Flowers and Botanical Objects", description: "Artificial flowers, plants and trees for wholesale buyers worldwide." },

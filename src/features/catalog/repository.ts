@@ -17,7 +17,7 @@ export async function listPublishedProductRows(db: D1Database, query: ProductLis
   values.push(query.limit, query.offset);
   const result = await db.prepare(`
     SELECT p.name, p.slug, p.summary, c.name AS category_name, c.slug AS category_slug,
-      m.object_key, m.original_filename,
+      m.object_key, m.original_filename, m.width, m.height,
       COALESCE((SELECT pi.alt_text FROM product_images pi
         WHERE pi.product_id = p.id AND pi.media_id = p.cover_media_id
         ORDER BY pi.is_cover DESC, pi.sort_order, pi.id LIMIT 1), m.alt_text) AS alt_text
@@ -46,7 +46,7 @@ export async function findPublishedProductRow(db: D1Database, locale: string, sl
   return db.prepare(`
     SELECT p.id, p.name, p.slug, p.product_code, p.summary, p.body, p.specifications_json,
       p.seo_title, p.seo_description, c.name AS category_name, c.slug AS category_slug,
-      m.object_key, m.original_filename,
+      m.object_key, m.original_filename, m.width, m.height,
       COALESCE((SELECT pi.alt_text FROM product_images pi
         WHERE pi.product_id = p.id AND pi.media_id = p.cover_media_id
         ORDER BY pi.is_cover DESC, pi.sort_order, pi.id LIMIT 1), m.alt_text) AS alt_text
@@ -62,7 +62,7 @@ export async function findPreviewProductRow(db: D1Database, locale: string, id: 
   return db.prepare(`
     SELECT p.id, p.name, p.slug, p.product_code, p.summary, p.body, p.specifications_json,
       p.seo_title, p.seo_description, c.name AS category_name, c.slug AS category_slug,
-      m.object_key, m.original_filename,
+      m.object_key, m.original_filename, m.width, m.height,
       COALESCE((SELECT pi.alt_text FROM product_images pi
         WHERE pi.product_id = p.id AND pi.media_id = p.cover_media_id
         ORDER BY pi.is_cover DESC, pi.sort_order, pi.id LIMIT 1), m.alt_text) AS alt_text
@@ -76,7 +76,7 @@ export async function findPreviewProductRow(db: D1Database, locale: string, id: 
 
 export async function listProductImageRows(db: D1Database, productId: string): Promise<Row[]> {
   const result = await db.prepare(`
-    SELECT m.object_key, m.original_filename, COALESCE(pi.alt_text, m.alt_text) AS alt_text
+    SELECT m.object_key, m.original_filename, m.width, m.height, COALESCE(pi.alt_text, m.alt_text) AS alt_text
     FROM product_images pi
     JOIN media m ON m.id = pi.media_id AND m.is_deleted = 0
     WHERE pi.product_id = ?
@@ -88,7 +88,7 @@ export async function listProductImageRows(db: D1Database, productId: string): P
 export async function listRelatedProductRows(db: D1Database, locale: string, categorySlug: string, productId: string): Promise<Row[]> {
   const result = await db.prepare(`
     SELECT p.name, p.slug, p.summary, c.name AS category_name, c.slug AS category_slug,
-      m.object_key, m.original_filename,
+      m.object_key, m.original_filename, m.width, m.height,
       COALESCE((SELECT pi.alt_text FROM product_images pi
         WHERE pi.product_id = p.id AND pi.media_id = p.cover_media_id
         ORDER BY pi.is_cover DESC, pi.sort_order, pi.id LIMIT 1), m.alt_text) AS alt_text
@@ -104,7 +104,7 @@ export async function listRelatedProductRows(db: D1Database, locale: string, cat
 
 export async function listPublishedCategoryRows(db: D1Database, locale: string): Promise<Row[]> {
   const result = await db.prepare(`
-    SELECT c.name, c.slug, c.description, m.object_key, m.original_filename, m.alt_text
+    SELECT c.name, c.slug, c.description, m.object_key, m.original_filename, m.width, m.height, m.alt_text
     FROM categories c
     LEFT JOIN media m ON m.id = c.cover_media_id AND m.is_deleted = 0
     WHERE c.locale = ? AND c.status = 'published'
@@ -115,7 +115,7 @@ export async function listPublishedCategoryRows(db: D1Database, locale: string):
 
 export async function findPublishedCategoryRow(db: D1Database, locale: string, slug: string): Promise<Row | null> {
   return db.prepare(`
-    SELECT c.name, c.slug, c.description, m.object_key, m.original_filename, m.alt_text
+    SELECT c.name, c.slug, c.description, m.object_key, m.original_filename, m.width, m.height, m.alt_text
     FROM categories c
     LEFT JOIN media m ON m.id = c.cover_media_id AND m.is_deleted = 0
     WHERE c.locale = ? AND c.slug = ? AND c.status = 'published'
@@ -125,7 +125,7 @@ export async function findPublishedCategoryRow(db: D1Database, locale: string, s
 
 export async function findPreviewCategoryRow(db: D1Database, locale: string, id: string, slug: string): Promise<Row | null> {
   return db.prepare(`
-    SELECT c.name, c.slug, c.description, m.object_key, m.original_filename, m.alt_text
+    SELECT c.name, c.slug, c.description, m.object_key, m.original_filename, m.width, m.height, m.alt_text
     FROM categories c
     LEFT JOIN media m ON m.id = c.cover_media_id AND m.is_deleted = 0
     WHERE c.id = ? AND c.locale = ? AND c.slug = ? AND c.status <> 'archived'
