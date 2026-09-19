@@ -2,11 +2,13 @@ import { renderInquiryDetail } from "./InquiryDetail";
 
 type InquirySummary = { id: string; name: string; email: string; company: string | null; country: string | null; inquiryType: string; status: string; assigneeDisplayName: string | null; productName: string | null; createdAt: string };
 type Assignee = { id: string; displayName: string; role: string };
-type ListData = { items: InquirySummary[]; assignees: Assignee[]; total: number };
+type ListData = { items: InquirySummary[]; assignees: Assignee[]; page: number; totalPages: number; total: number };
 
 export function initializeInquiryBoard(root: HTMLElement): void {
   if (root.dataset.initialized) return;
   root.dataset.initialized = "true";
+  let page = 1;
+  let totalPages = 1;
   const type = select("询盘类型", [["", "全部类型"], ["product", "产品"], ["contact", "联系"], ["catalog", "目录"]]);
   const status = select("状态筛选", [["", "全部状态"], ["new", "新询盘"], ["contacted", "已联系"], ["qualified", "有效"], ["closed", "已关闭"], ["spam", "垃圾"]]);
   const assignee = select("负责人筛选", [["", "全部负责人"]]);
@@ -21,23 +23,37 @@ export function initializeInquiryBoard(root: HTMLElement): void {
   feedback.className = "content-list__feedback";
   feedback.setAttribute("aria-live", "polite");
   const list = document.createElement("div");
+  const previous = button("上一页");
+  const next = button("下一页");
+  const pageSummary = document.createElement("span");
+  pageSummary.setAttribute("aria-live", "polite");
+  const pagination = document.createElement("nav");
+  pagination.className = "data-table__pagination";
+  pagination.setAttribute("aria-label", "询盘分页");
+  const paginationActions = document.createElement("span");
+  paginationActions.appendChild(previous); paginationActions.appendChild(next);
+  pagination.appendChild(pageSummary); pagination.appendChild(paginationActions);
   const detail = document.createElement("aside");
   detail.className = "content-editor";
   detail.hidden = true;
   detail.setAttribute("aria-label", "询盘详情");
-  root.replaceChildren(toolbar, feedback, list, detail);
-  for (const control of [type, status, assignee, from, to, market, product]) control.addEventListener("change", () => void load());
-  for (const control of [market, product]) control.addEventListener("input", debounce(() => void load()));
+  root.replaceChildren(toolbar, feedback, list, pagination, detail);
+  for (const control of [type, status, assignee, from, to, market, product]) control.addEventListener("change", resetAndLoad);
+  for (const control of [market, product]) control.addEventListener("input", debounce(resetAndLoad));
+  previous.addEventListener("click", () => { if (page > 1) { page -= 1; void load(); } });
+  next.addEventListener("click", () => { if (page < totalPages) { page += 1; void load(); } });
   void load();
 
   async function load(): Promise<void> {
     feedback.textContent = "正在加载…";
-    const query = new URLSearchParams();
+    const query = new URLSearchParams({ page: String(page), pageSize: "20" });
     for (const [key, value] of [["type", type.value], ["status", status.value], ["assignee", assignee.value], ["dateFrom", from.value], ["dateTo", to.value], ["market", market.value.trim()], ["product", product.value.trim()]]) if (value) query.set(key, value);
     try {
       const response = await fetch(`/api/admin/inquiries/list?${query}`);
       const body = await response.json() as { ok: boolean; data?: ListData; error?: { message?: string } };
       if (!response.ok || !body.ok || !body.data) throw new Error(body.error?.message ?? "无法加载询盘。");
+      page = body.data.page;
+      totalPages = body.data.totalPages;
       render(body.data);
       feedback.textContent = `共 ${body.data.total} 条询盘`;
     } catch (error) {
@@ -46,6 +62,9 @@ export function initializeInquiryBoard(root: HTMLElement): void {
   }
 
   function render(data: ListData): void {
+    pageSummary.textContent = `第 ${data.page} / ${data.totalPages} 页`;
+    previous.disabled = data.page <= 1;
+    next.disabled = data.page >= data.totalPages;
     const known = new Set(Array.from(assignee.options).map((option) => option.value));
     for (const user of data.assignees) if (!known.has(user.id)) assignee.appendChild(new Option(user.displayName, user.id));
     if (!data.items.length) { list.replaceChildren(document.createTextNode("暂无询盘。")); return; }
@@ -63,9 +82,12 @@ export function initializeInquiryBoard(root: HTMLElement): void {
     }
     const scroll = document.createElement("div"); scroll.className = "data-table__scroll"; scroll.appendChild(table); list.replaceChildren(scroll);
   }
+
+  function resetAndLoad(): void { page = 1; void load(); }
 }
 
 function select(label: string, options: string[][]) { const element = document.createElement("select"); element.setAttribute("aria-label", label); for (const [value, text] of options) element.appendChild(new Option(text, value)); return element; }
 function input(label: string, type = "search") { const element = document.createElement("input"); element.type = type; element.setAttribute("aria-label", label); return element; }
+function button(label: string) { const element = document.createElement("button"); element.type = "button"; element.textContent = label; return element; }
 function formatDate(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(date); }
 function debounce(action: () => void) { let timer = 0; return () => { window.clearTimeout(timer); timer = window.setTimeout(action, 250); }; }

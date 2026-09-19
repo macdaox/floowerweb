@@ -113,10 +113,12 @@ describe("admin operations", () => {
     await expect(list.json()).resolves.toMatchObject({ data: { items: expect.arrayContaining([expect.objectContaining({ id: "target-1", role: "editor", isActive: true })]), total: 2 } });
 
     expect((await mutateUser("editor", "target-1", { action: "update", role: "sales", updatedAt: initialTime })).status).toBe(403);
+    await database.prepare("INSERT INTO sessions (id, token_digest, user_id, expires_at, created_at) VALUES ('deactivate-session', 'deactivate-digest', 'target-1', '2099-01-01', ?)").bind(initialTime).run();
     const changed = await mutateUser("admin", "target-1", { action: "update", role: "sales", isActive: false, updatedAt: initialTime });
     expect(changed.status).toBe(200);
     const changedBody = await data<{ updatedAt: string; role: string; isActive: boolean }>(changed);
     expect(changedBody).toMatchObject({ role: "sales", isActive: false });
+    expect(await database.prepare("SELECT id FROM sessions WHERE id = 'deactivate-session'").first()).toBeNull();
     expect((await mutateUser("admin", "target-1", { action: "update", isActive: true, updatedAt: initialTime })).status).toBe(409);
 
     await database.prepare("INSERT INTO sessions (id, token_digest, user_id, expires_at, created_at) VALUES ('session-1', 'digest-1', 'target-1', '2099-01-01', ?)").bind(initialTime).run();
@@ -126,6 +128,41 @@ describe("admin operations", () => {
     expect(await verifyPassword("new-password-123", row?.passwordHash ?? "")).toBe(true);
     expect(await database.prepare("SELECT id FROM sessions WHERE user_id = 'target-1'").first()).toBeNull();
     expect((await database.prepare("SELECT COUNT(*) AS total FROM audit_logs WHERE entity_id = 'target-1'").first<{ total: number }>())?.total).toBe(2);
+  });
+
+  it("preserves sessions when stale password-reset and deactivation compare-and-swap writes lose", async () => {
+    await database.prepare("INSERT INTO sessions (id, token_digest, user_id, expires_at, created_at) VALUES ('preserved-session', 'preserved-digest', 'target-1', '2099-01-01', ?)").bind(initialTime).run();
+    await database.prepare("UPDATE users SET updated_at = '2026-09-19T08:30:00.000Z' WHERE id = 'target-1'").run();
+
+    const staleReset = await mutateUser("admin", "target-1", { action: "resetPassword", password: "stale-password-123", updatedAt: initialTime });
+    expect(staleReset.status).toBe(409);
+    expect(await database.prepare("SELECT id FROM sessions WHERE id = 'preserved-session'").first()).toEqual({ id: "preserved-session" });
+
+    const staleDeactivate = await mutateUser("admin", "target-1", { action: "update", isActive: false, updatedAt: initialTime });
+    expect(staleDeactivate.status).toBe(409);
+    expect(await database.prepare("SELECT id FROM sessions WHERE id = 'preserved-session'").first()).toEqual({ id: "preserved-session" });
+    expect((await database.prepare("SELECT COUNT(*) AS total FROM audit_logs WHERE entity_id = 'target-1'").first<{ total: number }>())?.total).toBe(0);
+  });
+
+  it("allows editing an inactive admin and atomically keeps one active admin under concurrent removals", async () => {
+    await database.prepare("UPDATE users SET role = 'admin', is_active = 0 WHERE id = 'target-1'").run();
+    const inactiveEdit = await mutateUser("admin", "target-1", { action: "update", role: "editor", updatedAt: initialTime });
+    expect(inactiveEdit.status).toBe(200);
+
+    await database.prepare("UPDATE users SET role = 'editor', is_active = 1 WHERE id = 'admin-1'").run();
+    for (const id of ["admin-a", "admin-b"]) {
+      await database.prepare(`INSERT INTO users (id, email, username, display_name, password_hash, role, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 'test-hash', 'admin', 1, ?, ?)`).bind(id, `${id}@everstem.test`, id, id, initialTime, initialTime).run();
+    }
+
+    const [removeB, removeA] = await Promise.all([
+      mutateUserAs("admin-a", "admin-b", { action: "update", role: "editor", updatedAt: initialTime }),
+      mutateUserAs("admin-b", "admin-a", { action: "update", isActive: false, updatedAt: initialTime }),
+    ]);
+    expect([removeA.status, removeB.status].sort()).toEqual([200, 422]);
+    const rejected = removeA.status === 422 ? removeA : removeB;
+    await expect(rejected.json()).resolves.toMatchObject({ error: { code: "last_admin" } });
+    expect((await database.prepare("SELECT COUNT(*) AS total FROM users WHERE role = 'admin' AND is_active = 1").first<{ total: number }>())?.total).toBe(1);
   });
 
   it("lets only admins edit validated site settings and rejects stale writes", async () => {
@@ -159,6 +196,11 @@ describe("admin operations", () => {
 
   function mutateUser(role: Role, id: string, payload: unknown) {
     return userRoute.POST(context("POST", role, id, `/api/admin/users/${id}`, payload));
+  }
+
+  function mutateUserAs(actorId: string, id: string, payload: unknown) {
+    const request = new Request(`https://everstem.test/api/admin/users/${id}`, { method: "POST", headers: { "content-type": "application/json", origin: "https://everstem.test" }, body: JSON.stringify(payload) });
+    return userRoute.POST({ request, params: { id }, locals: { runtime: { env: { DB: database } }, auth: { id: actorId, email: `${actorId}@everstem.test`, displayName: actorId, role: "admin" } }, url: new URL(request.url) } as never);
   }
 });
 

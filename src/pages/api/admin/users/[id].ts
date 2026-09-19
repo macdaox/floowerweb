@@ -62,10 +62,6 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
     if (current.id === actor.id && parsed.data.action === "update" && (parsed.data.role && parsed.data.role !== "admin" || parsed.data.isActive === false)) {
       throw new HttpError("self_lockout", "You cannot remove your own administrator access.", 422);
     }
-    if (parsed.data.action === "update" && current.role === "admin" && (parsed.data.role && parsed.data.role !== "admin" || parsed.data.isActive === false)) {
-      const admins = await locals.runtime.env.DB.prepare("SELECT COUNT(*) AS total FROM users WHERE role = 'admin' AND is_active = 1").first<{ total: number }>();
-      if (Number(admins?.total ?? 0) <= 1) throw new HttpError("last_admin", "At least one active administrator is required.", 422);
-    }
     return ok(await mutateUser(locals.runtime.env.DB, current, parsed.data, actor));
   } catch (error) {
     return errorResponse(error, "Unable to update this user.");
@@ -87,20 +83,37 @@ async function mutateUser(db: D1Database, current: UserRow, payload: z.infer<typ
     const values: unknown[] = [];
     if (payload.role !== undefined) { fields.push("role = ?"); values.push(payload.role); }
     if (payload.isActive !== undefined) { fields.push("is_active = ?"); values.push(payload.isActive ? 1 : 0); }
-    mutation = db.prepare(`UPDATE users SET ${fields.join(", ")}, updated_at = ? WHERE id = ? AND updated_at = ?`).bind(...values, timestamp, current.id, payload.updatedAt);
+    mutation = db.prepare(`UPDATE users SET ${fields.join(", ")}, updated_at = ? WHERE id = ? AND updated_at = ?
+      AND NOT (role = 'admin' AND is_active = 1
+        AND (COALESCE(?, role) <> 'admin' OR COALESCE(?, is_active) = 0)
+        AND NOT EXISTS (SELECT 1 FROM users AS other WHERE other.id <> users.id AND other.role = 'admin' AND other.is_active = 1))`)
+      .bind(...values, timestamp, current.id, payload.updatedAt, payload.role ?? null, payload.isActive === undefined ? null : payload.isActive ? 1 : 0);
     action = "update";
     context = { ...(payload.role !== undefined ? { role: payload.role } : {}), ...(payload.isActive !== undefined ? { isActive: payload.isActive } : {}) };
   }
   const [result] = await db.batch([
     mutation,
-    db.prepare("INSERT INTO audit_logs (id, actor_user_id, action, entity_type, entity_id, context_text, created_at) SELECT ?, ?, ?, 'user', ?, ?, ? WHERE changes() = 1")
-      .bind(crypto.randomUUID(), actor.id, action, current.id, JSON.stringify(context), timestamp),
-    db.prepare("DELETE FROM sessions WHERE user_id = ? AND ? = 1").bind(current.id, payload.action === "resetPassword" || payload.action === "update" && payload.isActive === false ? 1 : 0),
+    db.prepare("DELETE FROM sessions WHERE user_id = ? AND ? = 1 AND changes() = 1")
+      .bind(current.id, payload.action === "resetPassword" || payload.action === "update" && payload.isActive === false ? 1 : 0),
+    db.prepare(`INSERT INTO audit_logs (id, actor_user_id, action, entity_type, entity_id, context_text, created_at)
+      SELECT ?, ?, ?, 'user', ?, ?, ? WHERE EXISTS (SELECT 1 FROM users WHERE id = ? AND updated_at = ?)`)
+      .bind(crypto.randomUUID(), actor.id, action, current.id, JSON.stringify(context), timestamp, current.id, timestamp),
   ]);
-  if (Number(result.meta?.changes ?? 0) !== 1) throw editConflict();
+  if (Number(result.meta?.changes ?? 0) !== 1) await throwUserWriteFailure(db, current, payload);
   const updated = await readUser(db, current.id);
   if (!updated) throw new HttpError("not_found", "User was not found.", 404);
   return updated;
+}
+
+async function throwUserWriteFailure(db: D1Database, attempted: UserRow, payload: z.infer<typeof payloadSchema>): Promise<never> {
+  const latest = await db.prepare("SELECT id, role, is_active AS isActive, updated_at AS updatedAt FROM users WHERE id = ?").bind(attempted.id).first<UserRow>();
+  if (!latest) throw new HttpError("not_found", "User was not found.", 404);
+  if (latest.updatedAt !== payload.updatedAt) throw editConflict();
+  if (payload.action === "update" && isActiveAdmin(latest) && (payload.role !== undefined && payload.role !== "admin" || payload.isActive === false)) {
+    const other = await db.prepare("SELECT id FROM users WHERE id <> ? AND role = 'admin' AND is_active = 1 LIMIT 1").bind(latest.id).first();
+    if (!other) throw new HttpError("last_admin", "At least one active administrator is required.", 422);
+  }
+  throw editConflict();
 }
 
 async function readUser(db: D1Database, id: string) {
@@ -110,6 +123,7 @@ async function readUser(db: D1Database, id: string) {
 }
 
 function mapUser(row: Record<string, unknown>) { return { ...row, isActive: Boolean(row.isActive) }; }
+function isActiveAdmin(user: UserRow) { return user.role === "admin" && Boolean(user.isActive); }
 function nextTimestamp(previous: string) { const now = Date.now(); const old = Date.parse(previous); return new Date(Number.isFinite(old) && now <= old ? old + 1 : now).toISOString(); }
 function editConflict() { return new HttpError("edit_conflict", "This user changed since you opened it. Reload before saving.", 409); }
 function errorResponse(error: unknown, fallback: string) {

@@ -36,14 +36,20 @@ function fixtureSql(passwordHash: string): string {
   const users = E2E_USERS.map((user) => `INSERT INTO users (id, email, username, display_name, password_hash, role, is_active, created_at, updated_at)
 VALUES (${sql(user.id)}, ${sql(user.email)}, ${sql(user.username)}, ${sql(user.displayName)}, ${sql(passwordHash)}, ${sql(user.role)}, 1, ${sql(now)}, ${sql(now)})
 ON CONFLICT(email) DO UPDATE SET display_name = excluded.display_name, password_hash = excluded.password_hash, role = excluded.role, is_active = 1, updated_at = excluded.updated_at;`).join("\n");
-  const inquiries = [
+  const inquiryRows = [
     ["e2e-dashboard-01", "张一", "zhang1@example.test", "新询盘", "new", "2099-01-01T00:00:06.000Z"],
     ["e2e-dashboard-02", "李二", "li2@example.test", "联系公司", "contacted", "2099-01-01T00:00:05.000Z"],
     ["e2e-dashboard-03", "王三", "wang3@example.test", "项目公司", "new", "2099-01-01T00:00:04.000Z"],
     ["e2e-dashboard-04", "赵四", "zhao4@example.test", "采购公司", "qualified", "2099-01-01T00:00:03.000Z"],
     ["e2e-dashboard-05", "周五", "zhou5@example.test", "设计公司", "closed", "2099-01-01T00:00:02.000Z"],
     ["e2e-dashboard-06", "<img src=x>", "safe@example.test", "文本安全", "new", "2099-01-01T00:00:01.000Z"],
-  ].map(([id, name, email, company, status, timestamp]) => `INSERT INTO inquiries (id, inquiry_type, name, email, company, source_route, status, created_at, updated_at)
+    ...Array.from({ length: 19 }, (_, index) => {
+      const suffix = String(index + 1).padStart(2, "0");
+      return [`e2e-dashboard-page-${suffix}`, `E2E Page Inquiry ${suffix}`, `page-${suffix}@example.test`, "Pagination Co", "new", `2098-12-${String(31 - index).padStart(2, "0")}T00:00:00.000Z`];
+    }),
+    ["e2e-dashboard-later", "E2E Later Inquiry", "later-inquiry@example.test", "Later Co", "new", "2000-01-01T00:00:00.000Z"],
+  ];
+  const inquiries = inquiryRows.map(([id, name, email, company, status, timestamp]) => `INSERT INTO inquiries (id, inquiry_type, name, email, company, source_route, status, created_at, updated_at)
 VALUES (${sql(id)}, 'catalog', ${sql(name)}, ${sql(email)}, ${sql(company)}, '/__e2e__/dashboard', ${sql(status)}, ${sql(timestamp)}, ${sql(timestamp)});`).join("\n");
   const bulkCategories = Array.from({ length: 105 }, (_, index) => {
     const suffix = String(index + 1).padStart(3, "0");
@@ -85,9 +91,17 @@ INSERT INTO space_images (id, space_id, media_id, alt_text, sort_order, created_
 VALUES ('e2e-alt-space-primary-cover', 'e2e-alt-space-primary', 'e2e-bulk-media-103', 'Primary space assignment alt', 0, ${sql(now)});
 INSERT INTO space_images (id, space_id, media_id, alt_text, sort_order, created_at)
 VALUES ('e2e-alt-space-related-cover', 'e2e-alt-space-related', 'e2e-bulk-media-102', 'Related space assignment alt', 0, ${sql(now)});`;
-  const subscribers = `INSERT INTO subscribers (id, email, source, status, subscribed_at, created_at, updated_at)
-VALUES ('e2e-subscriber', 'e2e-subscriber@example.test', '/__e2e__/footer', 'subscribed', ${sql(now)}, ${sql(now)}, ${sql(now)})
-ON CONFLICT(email) DO UPDATE SET source = excluded.source, status = 'subscribed', unsubscribed_at = NULL, updated_at = excluded.updated_at;`;
+  const subscriberRows = [
+    ["e2e-subscriber", "e2e-subscriber@example.test", "/__e2e__/footer", now],
+    ["e2e-subscriber-formula", "=IMPORTXML(example)", "=HYPERLINK", "2099-01-01T00:00:01.000Z"],
+    ...Array.from({ length: 49 }, (_, index) => {
+      const suffix = String(index + 1).padStart(2, "0");
+      return [`e2e-subscriber-page-${suffix}`, `subscriber-${suffix}@example.test`, "/__e2e__/bulk", `2098-11-${String(30 - index % 30).padStart(2, "0")}T00:00:${String(index).padStart(2, "0")}.000Z`];
+    }),
+    ["e2e-subscriber-later", "late-subscriber@example.test", "/__e2e__/late", "2000-01-01T00:00:00.000Z"],
+  ];
+  const subscribers = subscriberRows.map(([id, email, source, timestamp]) => `INSERT INTO subscribers (id, email, source, status, subscribed_at, created_at, updated_at)
+VALUES (${sql(id)}, ${sql(email)}, ${sql(source)}, 'subscribed', ${sql(timestamp)}, ${sql(timestamp)}, ${sql(timestamp)});`).join("\n");
   const settings = `INSERT INTO settings (id, company_name, tagline, company_description, contact_email, instagram_url, pinterest_url, linkedin_url, default_seo_title, default_seo_description, created_at, updated_at)
 VALUES ('site', 'EVERSTEM', 'E2E original tagline', 'E2E company', 'e2e@example.test', NULL, NULL, NULL, 'EVERSTEM', 'E2E description', ${sql(now)}, ${sql(now)})
 ON CONFLICT(id) DO UPDATE SET company_name = excluded.company_name, tagline = excluded.tagline, company_description = excluded.company_description,
@@ -105,6 +119,7 @@ DELETE FROM inquiry_interests WHERE inquiry_id LIKE 'e2e-dashboard-%';
 DELETE FROM inquiry_notes WHERE inquiry_id LIKE 'e2e-dashboard-%';
 DELETE FROM audit_logs WHERE entity_id LIKE 'e2e-dashboard-%' OR entity_id = 'e2e-managed' OR (entity_type = 'settings' AND entity_id = 'site');
 DELETE FROM inquiries WHERE id LIKE 'e2e-dashboard-%';
+DELETE FROM subscribers WHERE id LIKE 'e2e-subscriber%';
 DELETE FROM sessions WHERE user_id IN ('e2e-admin', 'e2e-editor', 'e2e-sales', 'e2e-managed');
 DELETE FROM rate_limits WHERE key = 'auth:login:unknown';
 ${users}
