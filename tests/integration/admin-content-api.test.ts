@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Miniflare } from "miniflare";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as articleRoute from "../../src/pages/api/admin/articles/[id]";
 import * as categoryRoute from "../../src/pages/api/admin/categories/[id]";
 import * as pageRoute from "../../src/pages/api/admin/pages/[id]";
@@ -150,6 +150,27 @@ describe("admin content API", () => {
     expect(failed.status).toBe(500);
     expect(await database.prepare("SELECT name, updated_at AS updatedAt FROM products WHERE id = ?").bind(original.id).first()).toEqual({ name: "Atomic stem", updatedAt: original.updatedAt });
     expect((await database.prepare("SELECT COUNT(*) AS total FROM audit_logs WHERE entity_id = ?").bind(original.id).first<{ total: number }>())?.total).toBe(1);
+  });
+
+  it("does not audit the loser of two same-version same-millisecond updates", async () => {
+    const created = await create(productRoute, "editor", {
+      name: "Concurrent stem", slug: "concurrent-stem", productCode: "ES-CONCURRENT", categoryId: "cat", specifications: {},
+    });
+    const original = (await body<{ id: string; updatedAt: string }>(created)).data;
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2099-01-01T00:00:00.000Z"));
+    try {
+      const responses = await Promise.all([
+        mutate(productRoute, "editor", original.id, { version: 1, updatedAt: original.updatedAt, data: { name: "Concurrent winner A" } }),
+        mutate(productRoute, "editor", original.id, { version: 1, updatedAt: original.updatedAt, data: { name: "Concurrent winner B" } }),
+      ]);
+
+      expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
+      expect((await database.prepare("SELECT COUNT(*) AS total FROM audit_logs WHERE entity_id = ?").bind(original.id).first<{ total: number }>())?.total).toBe(2);
+      const audits = await database.prepare("SELECT action FROM audit_logs WHERE entity_id = ? ORDER BY created_at, rowid").bind(original.id).all();
+      expect(audits.results).toEqual([{ action: "create" }, { action: "update" }]);
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it("supports create, edit, publish, unpublish, and archive for categories, spaces, articles, and pages", async () => {

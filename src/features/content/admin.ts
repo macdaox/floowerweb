@@ -164,7 +164,7 @@ export async function updateAdminContent(db: D1Database, entity: AdminEntity, id
     : db.prepare(`UPDATE ${config.table} SET ${fields.map((field) => `${config.editable[field]} = ?`).join(", ")}, updated_at = ? WHERE id = ? AND locale = 'en' AND updated_at = ?`)
       .bind(...fields.map((field) => data[field]), nextUpdatedAt, id, expectedUpdatedAt);
   try {
-    const [result] = await db.batch([mutation, auditStatement(db, actor, "update", entity, id, nextUpdatedAt, { fields }, { table: config.table, updatedAt: nextUpdatedAt })]);
+    const [result] = await db.batch([mutation, auditStatement(db, actor, "update", entity, id, nextUpdatedAt, { fields }, true)]);
     if (Number(result.meta?.changes ?? 0) !== 1) throw conflict();
   } catch (error) {
     if (error instanceof HttpError) throw error;
@@ -204,7 +204,7 @@ export async function transitionAdminContent(
   try {
     [result] = await db.batch([
       db.prepare(`UPDATE ${config.table} SET status = ?, updated_at = ?${articlePublished} WHERE id = ? AND locale = 'en' AND updated_at = ?`).bind(...values),
-      auditStatement(db, actor, action, entity, id, nextUpdatedAt, undefined, { table: config.table, updatedAt: nextUpdatedAt }),
+      auditStatement(db, actor, action, entity, id, nextUpdatedAt, undefined, true),
     ]);
   } catch (error) {
     throw mapWriteError(error);
@@ -267,11 +267,10 @@ function auditStatement(
   id: string,
   timestamp: string,
   context?: object,
-  condition?: { table: string; updatedAt: string },
+  onlyIfPreviousMutationChanged = false,
 ): D1PreparedStatement {
-  const conditionSql = condition ? ` WHERE EXISTS (SELECT 1 FROM ${condition.table} WHERE id = ? AND locale = 'en' AND updated_at = ?)` : "";
+  const conditionSql = onlyIfPreviousMutationChanged ? " WHERE changes() = 1" : "";
   const values: unknown[] = [crypto.randomUUID(), actor.id, action, entity, id, context ? JSON.stringify(context) : null, timestamp];
-  if (condition) values.push(id, condition.updatedAt);
   return db.prepare(`INSERT INTO audit_logs (id, actor_user_id, action, entity_type, entity_id, context_text, created_at) SELECT ?, ?, ?, ?, ?, ?, ?${conditionSql}`)
     .bind(...values);
 }
