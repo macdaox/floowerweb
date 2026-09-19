@@ -1,0 +1,14 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { requireRole } from "../../features/auth/authorize";
+const user = requireRole(Astro.locals, ["admin", "editor", "sales"]);
+if (user.role !== "admin") return Astro.redirect("/admin");
+---
+<AdminLayout title="设置" user={user}>
+  <section class="dashboard content-admin-page" aria-labelledby="settings-title">
+    <header class="dashboard__heading"><div><p class="admin-kicker">站点配置</p><h1 id="settings-title">设置</h1></div></header>
+    <p class="dashboard-panel__copy">管理公司、联系方式、社交媒体和默认 SEO 信息。</p>
+    <div class="content-editor content-editor--inline" data-settings-editor></div>
+  </section>
+  <script>import { initializeSettingsEditor } from "../../components/admin/SettingsEditor"; const root = document.querySelector<HTMLElement>("[data-settings-editor]"); if (root) initializeSettingsEditor(root);</script>
+</AdminLayout>

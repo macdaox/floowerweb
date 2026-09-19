@@ -1,0 +1,14 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { requireRole } from "../../features/auth/authorize";
+const user = requireRole(Astro.locals, ["admin", "editor", "sales"]);
+if (user.role !== "admin") return Astro.redirect("/admin");
+---
+<AdminLayout title="用户" user={user}>
+  <section class="dashboard content-admin-page" aria-labelledby="users-title">
+    <header class="dashboard__heading"><div><p class="admin-kicker">访问控制</p><h1 id="users-title">用户</h1></div></header>
+    <p class="dashboard-panel__copy">管理账户角色、启用状态和密码重置。</p>
+    <div data-user-manager></div>
+  </section>
+  <script>import { initializeUserManager } from "../../components/admin/UserManager"; const root = document.querySelector<HTMLElement>("[data-user-manager]"); if (root) initializeUserManager(root);</script>
+</AdminLayout>

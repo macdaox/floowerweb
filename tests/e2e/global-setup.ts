@@ -8,6 +8,7 @@ const E2E_USERS = [
   { id: "e2e-admin", email: "e2e-admin@everstem.test", username: "e2e-admin", displayName: "E2E Admin", role: "admin" },
   { id: "e2e-editor", email: "e2e-editor@everstem.test", username: "e2e-editor", displayName: "E2E Editor", role: "editor" },
   { id: "e2e-sales", email: "e2e-sales@everstem.test", username: "e2e-sales", displayName: "E2E Sales", role: "sales" },
+  { id: "e2e-managed", email: "e2e-managed@everstem.test", username: "e2e-managed", displayName: "E2E Managed User", role: "editor" },
 ] as const;
 
 export default async function globalSetup(): Promise<void> {
@@ -84,6 +85,13 @@ INSERT INTO space_images (id, space_id, media_id, alt_text, sort_order, created_
 VALUES ('e2e-alt-space-primary-cover', 'e2e-alt-space-primary', 'e2e-bulk-media-103', 'Primary space assignment alt', 0, ${sql(now)});
 INSERT INTO space_images (id, space_id, media_id, alt_text, sort_order, created_at)
 VALUES ('e2e-alt-space-related-cover', 'e2e-alt-space-related', 'e2e-bulk-media-102', 'Related space assignment alt', 0, ${sql(now)});`;
+  const subscribers = `INSERT INTO subscribers (id, email, source, status, subscribed_at, created_at, updated_at)
+VALUES ('e2e-subscriber', 'e2e-subscriber@example.test', '/__e2e__/footer', 'subscribed', ${sql(now)}, ${sql(now)}, ${sql(now)})
+ON CONFLICT(email) DO UPDATE SET source = excluded.source, status = 'subscribed', unsubscribed_at = NULL, updated_at = excluded.updated_at;`;
+  const settings = `INSERT INTO settings (id, company_name, tagline, company_description, contact_email, instagram_url, pinterest_url, linkedin_url, default_seo_title, default_seo_description, created_at, updated_at)
+VALUES ('site', 'EVERSTEM', 'E2E original tagline', 'E2E company', 'e2e@example.test', NULL, NULL, NULL, 'EVERSTEM', 'E2E description', ${sql(now)}, ${sql(now)})
+ON CONFLICT(id) DO UPDATE SET company_name = excluded.company_name, tagline = excluded.tagline, company_description = excluded.company_description,
+contact_email = excluded.contact_email, updated_by_user_id = NULL, updated_at = excluded.updated_at;`;
   return `DELETE FROM product_images WHERE product_id IN (SELECT id FROM products WHERE slug LIKE 'e2e-%' OR slug LIKE 'picker-pagination-%');
 DELETE FROM products WHERE slug LIKE 'e2e-%' OR slug LIKE 'picker-pagination-%';
 DELETE FROM space_images WHERE space_id IN (SELECT id FROM spaces WHERE slug LIKE 'e2e-%');
@@ -94,11 +102,15 @@ DELETE FROM categories WHERE slug LIKE 'e2e-%';
 DELETE FROM media WHERE id LIKE 'e2e-bulk-media-%';
 DELETE FROM media WHERE id LIKE 'e2e-clamp-media-%';
 DELETE FROM inquiry_interests WHERE inquiry_id LIKE 'e2e-dashboard-%';
+DELETE FROM inquiry_notes WHERE inquiry_id LIKE 'e2e-dashboard-%';
+DELETE FROM audit_logs WHERE entity_id LIKE 'e2e-dashboard-%' OR entity_id = 'e2e-managed' OR (entity_type = 'settings' AND entity_id = 'site');
 DELETE FROM inquiries WHERE id LIKE 'e2e-dashboard-%';
-DELETE FROM sessions WHERE user_id IN ('e2e-admin', 'e2e-editor', 'e2e-sales');
+DELETE FROM sessions WHERE user_id IN ('e2e-admin', 'e2e-editor', 'e2e-sales', 'e2e-managed');
 DELETE FROM rate_limits WHERE key = 'auth:login:unknown';
 ${users}
 ${inquiries}
+${subscribers}
+${settings}
 ${bulkCategories}
 ${bulkSpaces}
 ${bulkMedia}

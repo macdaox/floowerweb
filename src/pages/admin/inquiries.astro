@@ -1,0 +1,14 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { requireRole } from "../../features/auth/authorize";
+const user = requireRole(Astro.locals, ["admin", "editor", "sales"]);
+if (user.role === "editor") return Astro.redirect("/admin");
+---
+<AdminLayout title="询盘" user={user}>
+  <section class="dashboard content-admin-page" aria-labelledby="inquiries-title">
+    <header class="dashboard__heading"><div><p class="admin-kicker">销售工作台</p><h1 id="inquiries-title">询盘</h1></div></header>
+    <p class="dashboard-panel__copy">筛选、分配和跟进全部客户询盘。</p>
+    <div data-inquiry-board></div>
+  </section>
+  <script>import { initializeInquiryBoard } from "../../components/admin/InquiryBoard"; const root = document.querySelector<HTMLElement>("[data-inquiry-board]"); if (root) initializeInquiryBoard(root);</script>
+</AdminLayout>

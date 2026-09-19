@@ -533,6 +533,15 @@
 .content-editor__field-error { min-height: 1rem; color: #8a3f34; font-size: 0.7rem; letter-spacing: 0; text-transform: none; }
 .content-editor__actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
 .content-editor__status { min-height: 1.5rem; }
+.content-editor--inline { position: static; width: auto; margin-top: 1.5rem; }
+.operation-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 0.75rem; margin: 1.5rem 0; }
+.operation-actions label { display: grid; gap: 0.35rem; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.operation-actions select { min-width: 12rem; }
+.operation-detail-grid { display: grid; grid-template-columns: minmax(8rem, 0.35fr) 1fr; gap: 0.6rem 1rem; margin: 1.5rem 0; }
+.operation-detail-grid dt { color: var(--color-text-muted); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.operation-detail-grid dd { margin: 0; white-space: pre-wrap; }
+.operation-notes { display: grid; gap: 0.75rem; padding-left: 1.25rem; }
+.operation-notes p { margin: 0 0 0.25rem; white-space: pre-wrap; }
 
 .media-library__upload {
   display: grid;
