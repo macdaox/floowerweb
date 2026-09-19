@@ -7,7 +7,7 @@ const { space } = Astro.props;
 
 <article class="space-card">
   <a href={`/spaces/${space.slug}`} aria-label={`View ${space.title}`}>
-    {space.image && <img src={space.image.src} alt={space.image.alt} width="1200" height="900" loading="lazy" />}
+    {space.image && <img src={space.image.src} alt={space.image.alt} width="1200" height="900" sizes="(max-width: 800px) 100vw, 50vw" loading="lazy" decoding="async" />}
     <p class="eyebrow">{space.category}{space.location && ` · ${space.location}`}</p>
     <h2>{space.title}</h2>
     {space.summary && <p>{space.summary}</p>}

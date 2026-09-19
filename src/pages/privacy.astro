@@ -12,4 +12,4 @@ if (claims) Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow");
 const content = db ? claims ? await getPreviewPageById(db, claims.id, "privacy", "en") : await getPublishedPage(db, "privacy", "en") : previewPages.privacy;
 ---
 
-<PublicLayout title={content?.seo.title ?? "Privacy | EVERSTEM"} description={content?.seo.description ?? "EVERSTEM privacy policy."} canonical="/privacy"><PageSections sections={content?.sections ?? []} />{!content && <section class="empty-state section"><p class="eyebrow">Privacy</p><h1>Our privacy notice is being prepared.</h1><p>Please contact us with any questions about your information.</p></section>}</PublicLayout>
+<PublicLayout title={content?.seo.title ?? "Privacy | EVERSTEM"} description={content?.seo.description ?? "EVERSTEM privacy policy."} canonical="/privacy" noindex={Boolean(claims)}><PageSections sections={content?.sections ?? []} />{!content && <section class="empty-state section"><p class="eyebrow">Privacy</p><h1>Our privacy notice is being prepared.</h1><p>Please contact us with any questions about your information.</p></section>}</PublicLayout>

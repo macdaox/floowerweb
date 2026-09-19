@@ -9,7 +9,7 @@ const date = published && !Number.isNaN(published.getTime()) ? new Intl.DateTime
 
 <article class="article-card">
   <a href={`/journal/${article.slug}`} aria-label={`Read ${article.title}`}>
-    {article.image && <img src={article.image.src} alt={article.image.alt} width="1000" height="1250" loading="lazy" />}
+    {article.image && <img src={article.image.src} alt={article.image.alt} width="1000" height="1250" sizes="(max-width: 800px) 100vw, 50vw" loading="lazy" decoding="async" />}
     <p class="eyebrow">{date ?? "Journal"}</p>
     <h2>{article.title}</h2>
     {article.summary && <p>{article.summary}</p>}

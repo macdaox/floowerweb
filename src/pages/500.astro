@@ -1,0 +1,14 @@
+---
+import PublicLayout from "../layouts/PublicLayout.astro";
+
+Astro.response.status = 500;
+---
+
+<PublicLayout title="Server error | EVERSTEM" description="EVERSTEM could not complete this request." canonical="/500" noindex>
+  <section class="empty-state section">
+    <p class="eyebrow">500 · Server error</p>
+    <h1>Something went out of season.</h1>
+    <p>We could not complete this request. Please try again, or return to the homepage.</p>
+    <a class="button button-primary" href="/">Return home</a>
+  </section>
+</PublicLayout>

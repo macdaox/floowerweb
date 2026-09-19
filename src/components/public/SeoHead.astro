@@ -1,0 +1,41 @@
+---
+export interface Props {
+  title: string;
+  description: string;
+  canonical?: string;
+  socialImage?: string;
+  socialImageAlt?: string;
+  type?: "website" | "article" | "product";
+  noindex?: boolean;
+}
+
+const {
+  title,
+  description,
+  canonical = Astro.url.pathname,
+  socialImage,
+  socialImageAlt = "EVERSTEM botanical objects",
+  type = "website",
+  noindex = false,
+} = Astro.props;
+const canonicalUrl = new URL(canonical, Astro.url.origin);
+canonicalUrl.hash = "";
+const socialImageUrl = socialImage ? new URL(socialImage, Astro.url.origin) : undefined;
+---
+
+<meta name="description" content={description} />
+<meta name="theme-color" content="#f3f0e8" />
+{noindex && <meta name="robots" content="noindex, nofollow" />}
+<link rel="canonical" href={canonicalUrl} />
+<meta property="og:site_name" content="EVERSTEM" />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:type" content={type} />
+<meta property="og:url" content={canonicalUrl} />
+{socialImageUrl && <meta property="og:image" content={socialImageUrl} />}
+{socialImageUrl && <meta property="og:image:alt" content={socialImageAlt} />}
+<meta name="twitter:card" content={socialImageUrl ? "summary_large_image" : "summary"} />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+{socialImageUrl && <meta name="twitter:image" content={socialImageUrl} />}
+<title>{title}</title>

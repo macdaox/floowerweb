@@ -64,13 +64,16 @@ function clearErrors(form: HTMLFormElement): void {
 }
 
 function renderErrors(form: HTMLFormElement, fields: Record<string, string> | undefined): void {
+  let firstInvalidField: HTMLElement | null = null;
   for (const [key, message] of Object.entries(fields ?? {})) {
     const name = fieldNames[key] ?? key;
-    const field = form.querySelector(`[name="${name}"]`) as unknown as { setAttribute(name: string, value: string): void } | null;
+    const field = form.querySelector<HTMLElement>(`[name="${name}"]`);
     field?.setAttribute("aria-invalid", "true");
+    firstInvalidField ??= field;
     const error = form.querySelector<HTMLElement>(`[data-field-error="${name}"], [data-field-error="${key}"]`);
     if (error) error.textContent = message;
   }
+  firstInvalidField?.focus();
 }
 
 function setLoading(form: HTMLFormElement, button: HTMLButtonElement | null, status: HTMLElement | null, loading: boolean): void {

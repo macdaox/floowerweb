@@ -30,6 +30,7 @@ export function initializeNewsletterForms(): void {
           email?.setAttribute("aria-invalid", "true");
           const error = form.querySelector<HTMLElement>("[data-field-error=email]");
           if (error) error.textContent = failure.error.fields.email;
+          email?.focus();
         }
         announce(status, failure.error?.message ?? "We could not subscribe you. Please try again.", true);
       } catch {

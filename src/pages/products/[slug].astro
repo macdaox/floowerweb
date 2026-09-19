@@ -2,6 +2,7 @@
 import ProductCard from "../../components/public/ProductCard.astro";
 import { selectGalleryImage } from "../../components/public/ProductGallery";
 import { productInquiryFields } from "../../components/public/ProductInquiryForm";
+import { breadcrumbData, productData } from "../../components/public/structured-data";
 import PublicLayout from "../../layouts/PublicLayout.astro";
 import { getPreviewProductById, getPublishedProductBySlug, previewProduct } from "../../features/catalog/service";
 import { resolvePreviewSecret, verifyPreviewToken } from "../../features/admin-content/preview";
@@ -15,17 +16,27 @@ if (claims) Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow");
 const product = db
   ? claims ? await getPreviewProductById(db, "en", claims.id, slug) : await getPublishedProductBySlug(db, "en", slug)
   : previewProduct(slug);
-if (!product) return new Response("Not found", { status: 404 });
-const selectedImage = selectGalleryImage(product.images, 0);
-const galleryImages = selectedImage ? [selectedImage, ...product.images.filter((image) => image.src !== selectedImage.src)] : [];
-const inquiry = productInquiryFields(product.id, product.name, Astro.url.pathname);
+if (!product) Astro.response.status = 404;
+const selectedImage = product ? selectGalleryImage(product.images, 0) : undefined;
+const galleryImages = product && selectedImage ? [selectedImage, ...product.images.filter((image) => image.src !== selectedImage.src)] : [];
+const inquiry = product ? productInquiryFields(product.id, product.name, Astro.url.pathname) : null;
+const structuredData = product ? [
+  productData(Astro.url.origin, product),
+  breadcrumbData(Astro.url.origin, [
+    { name: "Home", path: "/" },
+    { name: "Collections", path: "/collections" },
+    { name: product.category.name, path: `/collections/${product.category.slug}` },
+    { name: product.name, path: `/products/${product.slug}` },
+  ]),
+] : [];
 ---
 
-<PublicLayout title={product.seo.title} description={product.seo.description} socialImage={product.images[0]?.src} canonical={`/products/${slug}`}>
+<PublicLayout title={product?.seo.title ?? "Product not found | EVERSTEM"} description={product?.seo.description ?? "The requested EVERSTEM product is unavailable."} socialImage={product?.images[0]?.src} socialImageAlt={product?.images[0]?.alt} canonical={`/products/${slug}`} ogType={product ? "product" : "website"} noindex={!product || Boolean(claims)} structuredData={structuredData}>
+  {product && inquiry ?
   <article>
     <section class="product-detail section">
-      <div class="product-gallery" aria-label={`${product.name} gallery`}>
-        {galleryImages.length ? <>{galleryImages.map((image, index) => <figure id={`image-${index}`}><img src={image.src} alt={image.alt} width="1400" height="1750" loading={index === 0 ? "eager" : "lazy"} /><figcaption class="visually-hidden">Image {index + 1} of {galleryImages.length}</figcaption></figure>)}</> : <div class="gallery-empty">Product imagery will be available shortly.</div>}
+      <div class="product-gallery" aria-label={`${product.name} gallery`} data-product-gallery>
+        {galleryImages.length ? <>{galleryImages.map((image, index) => <figure id={`image-${index}`} data-gallery-item aria-label={`Image ${index + 1} of ${galleryImages.length}`} tabindex={index === 0 ? "0" : "-1"}><img src={image.src} alt={image.alt} width="1400" height="1750" sizes="(max-width: 800px) 100vw, 58vw" loading={index === 0 ? "eager" : "lazy"} decoding="async" fetchpriority={index === 0 ? "high" : undefined} /><figcaption class="visually-hidden">Image {index + 1} of {galleryImages.length}</figcaption></figure>)}</> : <div class="gallery-empty">Product imagery will be available shortly.</div>}
       </div>
       <div class="product-copy">
         <p class="eyebrow"><a href={`/collections/${product.category.slug}`}>{product.category.name}</a></p>
@@ -48,5 +59,11 @@ const inquiry = productInquiryFields(product.id, product.name, Astro.url.pathnam
       </div>
     </section>
     {product.relatedProducts.length > 0 && <section class="catalog-section section" aria-labelledby="related-products"><header class="catalog-section-heading"><p class="eyebrow">More from {product.category.name}</p><h2 id="related-products">Related products</h2></header><div class="product-grid">{product.relatedProducts.map((item) => <ProductCard product={item} />)}</div></section>}
-  </article>
+  </article> : <section class="empty-state section"><p class="eyebrow">Not found</p><h1>This product has moved on.</h1><p>The product you requested is unavailable. Browse our current botanical collections instead.</p><a class="button button-primary" href="/collections">View collections</a></section>}
 </PublicLayout>
+
+<script>
+  import { initializeProductGalleries } from "../../components/public/ProductGallery";
+  initializeProductGalleries();
+  document.addEventListener("astro:page-load", initializeProductGalleries);
+</script>

@@ -14,7 +14,7 @@ if (!content) return new Response("Not found", { status: 404 });
 Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow");
 ---
 
-<PublicLayout title={`${content.seo.title} · Preview`} description={content.seo.description} canonical={`/preview/pages/${id}`}>
+<PublicLayout title={`${content.seo.title} · Preview`} description={content.seo.description} canonical={`/preview/pages/${id}`} noindex>
   <aside class="preview-notice" aria-label="Draft preview">Draft preview</aside>
   <PageSections sections={content.sections} />
 </PublicLayout>

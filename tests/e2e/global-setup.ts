@@ -22,8 +22,16 @@ export default async function globalSetup(): Promise<void> {
     const passwordHash = await hashPassword(password);
     await writeFile(sqlFile, fixtureSql(passwordHash));
     exec("d1", "execute", "DB", "--local", "--file", sqlFile);
+    seedFixtureMedia();
   } finally {
     await rm(directory, { force: true, recursive: true });
+  }
+}
+
+function seedFixtureMedia(): void {
+  for (const suffix of ["102", "103", "104", "105"]) {
+    const key = `00000000-0000-4000-8000-000000000${suffix}.jpg`;
+    exec("r2", "object", "put", `everstem-media-preview/${key}`, "--local", "--file", "public/assets/everstem-magnolia-v2.jpg", "--content-type", "image/jpeg");
   }
 }
 
@@ -81,6 +89,8 @@ INSERT INTO products (id, locale, name, slug, product_code, summary, body, speci
 VALUES ('e2e-alt-product-related', 'en', 'E2E assignment related', 'e2e-alt-product-related', 'E2E-ALT-RELATED', 'Related summary', 'Related body', '{}', 'e2e-alt-category', 'e2e-bulk-media-104', 'published', ${sql(now)}, ${sql(now)});
 INSERT INTO product_images (id, product_id, media_id, alt_text, sort_order, is_cover, created_at)
 VALUES ('e2e-alt-product-primary-cover', 'e2e-alt-product-primary', 'e2e-bulk-media-105', 'Primary product assignment alt', 0, 1, ${sql(now)});
+INSERT INTO product_images (id, product_id, media_id, alt_text, sort_order, is_cover, created_at)
+VALUES ('e2e-alt-product-primary-detail', 'e2e-alt-product-primary', 'e2e-bulk-media-104', 'Primary product detail assignment alt', 1, 0, ${sql(now)});
 INSERT INTO product_images (id, product_id, media_id, alt_text, sort_order, is_cover, created_at)
 VALUES ('e2e-alt-product-related-cover', 'e2e-alt-product-related', 'e2e-bulk-media-104', 'Related product assignment alt', 0, 1, ${sql(now)});
 INSERT INTO spaces (id, locale, title, slug, category, summary, body, cover_media_id, status, created_at, updated_at)

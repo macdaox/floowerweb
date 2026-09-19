@@ -1,0 +1,17 @@
+---
+export type StructuredDataObject = Record<string, unknown>;
+
+interface Props {
+  data: StructuredDataObject[];
+}
+
+const { data } = Astro.props;
+const serialized = JSON.stringify({ "@context": "https://schema.org", "@graph": data })
+  .replaceAll("<", "\\u003c")
+  .replaceAll(">", "\\u003e")
+  .replaceAll("&", "\\u0026")
+  .replaceAll("\u2028", "\\u2028")
+  .replaceAll("\u2029", "\\u2029");
+---
+
+<script is:inline type="application/ld+json" set:html={serialized}></script>

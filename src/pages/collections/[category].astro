@@ -1,5 +1,6 @@
 ---
 import ProductCard from "../../components/public/ProductCard.astro";
+import { breadcrumbData } from "../../components/public/structured-data";
 import PublicLayout from "../../layouts/PublicLayout.astro";
 import { getPreviewCategoryById, getPublishedCategoryBySlug, listPublishedCategories, listPublishedProducts, previewCatalog } from "../../features/catalog/service";
 import { resolvePreviewSecret, verifyPreviewToken } from "../../features/admin-content/preview";
@@ -16,10 +17,14 @@ if (claims) Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow");
 const [category, categories, products] = db
   ? await Promise.all([claims ? getPreviewCategoryById(db, "en", claims.id, slug) : getPublishedCategoryBySlug(db, "en", slug), listPublishedCategories(db, "en"), listPublishedProducts(db, { locale: "en", categorySlug: slug, page })])
   : [previewCategory, previewCatalog.categories, { items: previewCatalog.products.filter((product) => product.category.slug === slug), page: 1, pageSize: 24 as const, total: previewCatalog.products.filter((product) => product.category.slug === slug).length, totalPages: 1 }];
-if (!category) return new Response("Not found", { status: 404 });
+if (!category) Astro.response.status = 404;
+const title = category ? `${category.name}${page > 1 ? ` — Page ${page}` : ""} | EVERSTEM` : "Collection not found | EVERSTEM";
+const description = category ? `${category.description}${page > 1 ? ` Page ${page}.` : ""}` : "The requested EVERSTEM collection is unavailable.";
+const canonical = page > 1 ? `/collections/${slug}?page=${page}` : `/collections/${slug}`;
 ---
 
-<PublicLayout title={`${category.name} | EVERSTEM`} description={category.description} socialImage={category.image?.src} canonical={`/collections/${slug}`}>
+<PublicLayout title={title} description={description} socialImage={category?.image?.src} socialImageAlt={category?.image?.alt} canonical={canonical} noindex={!category || Boolean(claims)} structuredData={category ? [breadcrumbData(Astro.url.origin, [{ name: "Home", path: "/" }, { name: "Collections", path: "/collections" }, { name: category.name, path: canonical }])] : []}>
+  {category ? <>
   <section class="catalog-hero section">
     <p class="eyebrow">Collection</p>
     <h1>{category.name}</h1>
@@ -33,4 +38,5 @@ if (!category) return new Response("Not found", { status: 404 });
     {products.items.length ? <div class="product-grid">{products.items.map((product) => <ProductCard product={product} />)}</div> : <p class="catalog-empty">No published products are available in this collection yet.</p>}
     {products.totalPages > 1 && <nav class="pagination" aria-label="Product pages">{products.page > 1 && <a href={`/collections/${category.slug}?page=${products.page - 1}`}>Previous</a>}<span>Page {products.page} of {products.totalPages}</span>{products.page < products.totalPages && <a href={`/collections/${category.slug}?page=${products.page + 1}`}>Next</a>}</nav>}
   </section>
+  </> : <section class="empty-state section"><p class="eyebrow">Not found</p><h1>This collection has moved on.</h1><p>The collection you requested is unavailable. Browse our current botanical collections instead.</p><a class="button button-primary" href="/collections">View collections</a></section>}
 </PublicLayout>

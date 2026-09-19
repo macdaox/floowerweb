@@ -12,4 +12,4 @@ if (claims) Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow");
 const content = db ? claims ? await getPreviewPageById(db, claims.id, "terms", "en") : await getPublishedPage(db, "terms", "en") : previewPages.terms;
 ---
 
-<PublicLayout title={content?.seo.title ?? "Terms | EVERSTEM"} description={content?.seo.description ?? "EVERSTEM terms."} canonical="/terms"><PageSections sections={content?.sections ?? []} />{!content && <section class="empty-state section"><p class="eyebrow">Terms</p><h1>Our terms are being prepared.</h1><p>Please contact us with any questions about using this site.</p></section>}</PublicLayout>
+<PublicLayout title={content?.seo.title ?? "Terms | EVERSTEM"} description={content?.seo.description ?? "EVERSTEM terms."} canonical="/terms" noindex={Boolean(claims)}><PageSections sections={content?.sections ?? []} />{!content && <section class="empty-state section"><p class="eyebrow">Terms</p><h1>Our terms are being prepared.</h1><p>Please contact us with any questions about using this site.</p></section>}</PublicLayout>

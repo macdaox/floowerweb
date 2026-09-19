@@ -1,5 +1,6 @@
 ---
 import ProductCard from "../../components/public/ProductCard.astro";
+import { breadcrumbData } from "../../components/public/structured-data";
 import PublicLayout from "../../layouts/PublicLayout.astro";
 import { listPublishedCategories, listPublishedProducts, previewCatalog } from "../../features/catalog/service";
 
@@ -9,9 +10,12 @@ const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage
 const [categories, products] = db
   ? await Promise.all([listPublishedCategories(db, "en"), listPublishedProducts(db, { locale: "en", page })])
   : [previewCatalog.categories, { items: previewCatalog.products, page: 1, pageSize: 24 as const, total: previewCatalog.products.length, totalPages: 1 }];
+const title = page > 1 ? `Collections — Page ${page} | EVERSTEM` : "Collections | EVERSTEM";
+const description = page > 1 ? `Artificial botanical collections for wholesale buyers. Page ${page}.` : "Artificial botanical collections for wholesale buyers.";
+const canonical = page > 1 ? `/collections?page=${page}` : "/collections";
 ---
 
-<PublicLayout title="Collections | EVERSTEM" description="Artificial botanical collections for wholesale buyers.">
+<PublicLayout title={title} description={description} canonical={canonical} structuredData={[breadcrumbData(Astro.url.origin, [{ name: "Home", path: "/" }, { name: "Collections", path: canonical }])]}>
   <section class="catalog-hero section">
     <p class="eyebrow">Wholesale collections</p>
     <h1>Botanical<br />collections.</h1>

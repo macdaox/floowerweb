@@ -11,7 +11,7 @@ if (claims) Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow");
 const content = db ? claims ? await getPreviewPageById(db, claims.id, "wholesale", "en") : await getPublishedPage(db, "wholesale", "en") ?? previewPages.wholesale : previewPages.wholesale;
 ---
 
-<PublicLayout title={content?.seo.title ?? "Wholesale | EVERSTEM"} description={content?.seo.description ?? "Wholesale with EVERSTEM."} canonical="/wholesale">
+<PublicLayout title={content?.seo.title ?? "Wholesale | EVERSTEM"} description={content?.seo.description ?? "Wholesale with EVERSTEM."} canonical="/wholesale" noindex={Boolean(claims)}>
   <PageSections sections={content?.sections ?? []} />
   {content ? <section class="form-section section" id="catalog-form"><header><p class="eyebrow">Request catalog</p><h2>Let’s find the right botanical range.</h2></header>
     <form class="catalog-form" action="/api/inquiries" method="post" aria-label="Request wholesale catalog" data-inquiry-form data-inquiry-type="catalog" data-source-route="/wholesale">
