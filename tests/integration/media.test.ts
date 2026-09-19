@@ -7,6 +7,7 @@ import { GET as listMedia, POST as uploadRoute, PUT as saveGalleryRoute } from "
 import { GET as serveMedia } from "../../src/pages/media/[key]";
 import { deleteMedia, uploadMedia } from "../../src/features/media/service";
 import { getPublishedProductBySlug } from "../../src/features/catalog/service";
+import { getPublishedSpace } from "../../src/features/content/service";
 
 const workspace = resolve(import.meta.dirname, "../..");
 const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
@@ -30,8 +31,10 @@ describe("R2 media management", () => {
     });
     database = await miniflare.getD1Database("DB") as unknown as D1Database;
     bucket = await miniflare.getR2Bucket("MEDIA") as unknown as R2Bucket;
-    for (const name of ["0001_initial.sql", "0002_schema_normalization.sql", "0003_rate_limits.sql", "0004_submission_idempotency.sql", "0005_submission_idempotency_ledger.sql"]) {
-      await applyMigration(database, await readFile(resolve(workspace, "migrations", name), "utf8"));
+    for (const name of ["0001_initial.sql", "0002_schema_normalization.sql", "0003_rate_limits.sql", "0004_submission_idempotency.sql", "0005_submission_idempotency_ledger.sql", "0006_active_media_references.sql"]) {
+      const source = await readFile(resolve(workspace, "migrations", name), "utf8");
+      if (name === "0006_active_media_references.sql") await applyTriggerMigration(database, source);
+      else await applyMigration(database, source);
     }
     await seedContent(database);
   });
@@ -143,13 +146,13 @@ describe("R2 media management", () => {
       entity: "product",
       contentId: "product-1",
       items: [
-        { mediaId: second.id, altText: "Open magnolia bloom", isCover: true },
+        { mediaId: second.id, altText: "Renée’s open magnolia — detail", isCover: true },
         { mediaId: first.id, altText: "Full magnolia branch", isCover: false },
       ],
     }), "editor") as never);
     expect(saved.status).toBe(200);
     await expect(saved.json()).resolves.toMatchObject({ data: { items: [
-      { mediaId: second.id, sortOrder: 0, isCover: true, altText: "Open magnolia bloom" },
+      { mediaId: second.id, sortOrder: 0, isCover: true, altText: "Renée’s open magnolia — detail" },
       { mediaId: first.id, sortOrder: 1, isCover: false, altText: "Full magnolia branch" },
     ] } });
     await expect(database.prepare("SELECT cover_media_id FROM products WHERE id = 'product-1'").first()).resolves.toMatchObject({ cover_media_id: second.id });
@@ -163,7 +166,10 @@ describe("R2 media management", () => {
     await database.prepare("UPDATE products SET status = 'published' WHERE id = 'product-1'").run();
     const publicProduct = await getPublishedProductBySlug(database, "en", "magnolia");
     expect(publicProduct?.image?.src).toBe(`/media/${second.objectKey}`);
-    expect(publicProduct?.images.map((image) => image.src)).toEqual([`/media/${second.objectKey}`, `/media/${first.objectKey}`]);
+    expect(publicProduct?.images).toEqual([
+      { src: `/media/${second.objectKey}`, alt: "Renée’s open magnolia — detail" },
+      { src: `/media/${first.objectKey}`, alt: "Full magnolia branch" },
+    ]);
   });
 
   it("supports space gallery ordering and cover selection through the parent cover", async () => {
@@ -179,6 +185,10 @@ describe("R2 media management", () => {
     await expect(database.prepare("SELECT cover_media_id FROM spaces WHERE id = 'space-1'").first()).resolves.toMatchObject({ cover_media_id: second.id });
     const rows = await database.prepare("SELECT media_id, sort_order FROM space_images WHERE space_id = 'space-1' ORDER BY sort_order").all();
     expect(rows.results).toEqual([{ media_id: first.id, sort_order: 0 }, { media_id: second.id, sort_order: 1 }]);
+
+    await database.prepare("UPDATE spaces SET status = 'published' WHERE id = 'space-1'").run();
+    const publicSpace = await getPublishedSpace(database, "en", "lobby");
+    expect(publicSpace?.images[0]).toEqual({ src: `/media/${second.objectKey}`, alt: "Installation detail" });
 
     await database.prepare("UPDATE spaces SET status = 'archived' WHERE id = 'space-1'").run();
     const archived = await saveGalleryRoute(routeContext(jsonRequest("https://everstem.test/api/admin/media", "PUT", {
@@ -220,6 +230,45 @@ describe("R2 media management", () => {
     await expect(deleteMedia({ ...env(), MEDIA: racingBucket }, uploaded.id, "admin-1")).rejects.toMatchObject({ status: 409, code: "media_referenced" });
     expect(await bucket.head(uploaded.objectKey)).not.toBeNull();
     await expect(database.prepare("SELECT is_deleted FROM media WHERE id = ?").bind(uploaded.id).first()).resolves.toEqual({ is_deleted: 0 });
+  });
+
+  it("atomically rejects a gallery save when deletion wins after the availability preflight", async () => {
+    const uploaded = await uploadMedia(env(), file(jpegBytes, "concurrent.jpg", "image/jpeg"), { altText: "Concurrent branch", createdByUserId: "editor-1" });
+    let releaseBatch!: () => void;
+    let batchReached!: () => void;
+    const batchIsReached = new Promise<void>((resolve) => { batchReached = resolve; });
+    const batchCanContinue = new Promise<void>((resolve) => { releaseBatch = resolve; });
+    let paused = false;
+    const delayedDatabase = new Proxy(database, {
+      get(target, property) {
+        if (property === "batch") return async (statements: D1PreparedStatement[]) => {
+          if (!paused) {
+            paused = true;
+            batchReached();
+            await batchCanContinue;
+          }
+          return target.batch(statements);
+        };
+        const value = Reflect.get(target, property);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+
+    const saving = saveGalleryRoute(routeContext(jsonRequest("https://everstem.test/api/admin/media", "PUT", {
+      version: 1,
+      entity: "product",
+      contentId: "product-1",
+      items: [{ mediaId: uploaded.id, altText: "Concurrent magnolia branch", isCover: true }],
+    }), "editor", { DB: delayedDatabase }) as never);
+    await batchIsReached;
+    await expect(deleteMedia(env(), uploaded.id, "admin-1")).resolves.toEqual({ deleted: true });
+    releaseBatch();
+
+    const response = await saving;
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: "invalid_media", fields: { items: expect.any(String) } } });
+    await expect(database.prepare("SELECT cover_media_id FROM products WHERE id = 'product-1'").first()).resolves.toEqual({ cover_media_id: null });
+    await expect(database.prepare("SELECT COUNT(*) AS total FROM product_images WHERE product_id = 'product-1'").first()).resolves.toEqual({ total: 0 });
   });
 
   it("serves immutable media with its content type and ETag and honors conditional requests", async () => {
@@ -285,4 +334,10 @@ async function seedContent(database: D1Database): Promise<void> {
 
 async function applyMigration(database: D1Database, source: string): Promise<void> {
   for (const statement of source.split(";").map((entry) => entry.trim()).filter(Boolean)) await database.prepare(statement).run();
+}
+
+async function applyTriggerMigration(database: D1Database, source: string): Promise<void> {
+  for (const match of source.matchAll(/CREATE TRIGGER[\s\S]*?END;/gu)) {
+    await database.prepare(match[0].slice(0, -1)).run();
+  }
 }

@@ -46,7 +46,7 @@ migrations_dir = "${resolve(workspace, "migrations")}"\n`,
 
   it("applies the forward-only normalization migration after the initial schema", () => {
     const migrations = query("SELECT name FROM d1_migrations ORDER BY id").map((row) => row.name);
-    expect(migrations).toEqual(["0001_initial.sql", "0002_schema_normalization.sql", "0003_rate_limits.sql", "0004_submission_idempotency.sql", "0005_submission_idempotency_ledger.sql"]);
+    expect(migrations).toEqual(["0001_initial.sql", "0002_schema_normalization.sql", "0003_rate_limits.sql", "0004_submission_idempotency.sql", "0005_submission_idempotency_ledger.sql", "0006_active_media_references.sql"]);
   });
 
   it("enforces the idempotency ledger's type-specific reference pairing", () => {
@@ -81,6 +81,16 @@ migrations_dir = "${resolve(workspace, "migrations")}"\n`,
       VALUES ('product-3', 'en', 'Orphan', 'orphan-stem', 'ES-ORP-001', 'missing-category', '{}', 'draft', '${now}', '${now}')`)).toThrow(/FOREIGN KEY constraint failed/);
 
     expect(() => execute(`INSERT INTO product_images (id, product_id, media_id, created_at) VALUES ('product-image-2', 'product-1', 'media-1', '${now}')`)).toThrow(/UNIQUE constraint failed/);
+  });
+
+  it("atomically rejects soft-deleted media in direct covers and galleries", () => {
+    const now = "2026-09-13T00:00:00.000Z";
+    execute(`INSERT INTO media (id, object_key, original_filename, mime_type, byte_size, alt_text, is_deleted, created_at, updated_at)
+      VALUES ('deleted-media', 'deleted.jpg', 'deleted.jpg', 'image/jpeg', 1, 'Deleted image', 1, '${now}', '${now}')`);
+
+    expect(() => execute("UPDATE products SET cover_media_id = 'deleted-media' WHERE id = 'product-1'")).toThrow(/active media required/iu);
+    expect(() => execute(`INSERT INTO product_images (id, product_id, media_id, alt_text, created_at)
+      VALUES ('deleted-gallery-image', 'product-1', 'deleted-media', 'Deleted image', '${now}')`)).toThrow(/active media required/iu);
   });
 
   it("normalizes inquiry interests and restricts JSON columns to bounded content", () => {

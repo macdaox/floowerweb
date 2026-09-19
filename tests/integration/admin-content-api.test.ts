@@ -21,8 +21,10 @@ describe("admin content API", () => {
   beforeEach(async () => {
     miniflare = new Miniflare({ modules: true, script: "export default { fetch() { return new Response('ok'); } }", d1Databases: ["DB"] });
     database = await miniflare.getD1Database("DB") as unknown as D1Database;
-    for (const name of ["0001_initial.sql", "0002_schema_normalization.sql", "0003_rate_limits.sql", "0004_submission_idempotency.sql", "0005_submission_idempotency_ledger.sql"]) {
-      await applyMigration(database, await readFile(resolve(workspace, "migrations", name), "utf8"));
+    for (const name of ["0001_initial.sql", "0002_schema_normalization.sql", "0003_rate_limits.sql", "0004_submission_idempotency.sql", "0005_submission_idempotency_ledger.sql", "0006_active_media_references.sql"]) {
+      const source = await readFile(resolve(workspace, "migrations", name), "utf8");
+      if (name === "0006_active_media_references.sql") await applyTriggerMigration(database, source);
+      else await applyMigration(database, source);
     }
     await seedActorsAndCategory(database);
   });
@@ -133,6 +135,82 @@ describe("admin content API", () => {
     expect(invalidEdit.status).toBe(422);
     await expect(invalidEdit.json()).resolves.toMatchObject({ error: { code: "publish_validation", fields: { summary: expect.any(String) } } });
     expect(await database.prepare("SELECT status, summary FROM products WHERE id = ?").bind(draft.id).first()).toEqual({ status: "published", summary: "Complete summary." });
+  });
+
+  it("rejects nonexistent, deleted, or undescribed direct cover media", async () => {
+    await insertMedia("deleted-cover", "Deleted magnolia cover", true);
+    await insertMedia("blank-alt-cover", null, false);
+    await insertMedia("described-cover", "Renée’s magnolia — lobby view", false);
+
+    for (const [slug, coverMediaId] of [
+      ["missing-cover", "does-not-exist"],
+      ["deleted-cover", "deleted-cover"],
+      ["blank-cover", "blank-alt-cover"],
+    ] as const) {
+      const response = await create(categoryRoute, "editor", { name: slug, slug, coverMediaId });
+      expect(response.status).toBe(422);
+      await expect(response.json()).resolves.toMatchObject({ error: { code: "invalid_media", fields: { coverMediaId: expect.any(String) } } });
+    }
+
+    const accepted = await create(categoryRoute, "editor", {
+      name: "Described cover",
+      slug: "described-cover",
+      coverMediaId: "described-cover",
+    });
+    expect(accepted.status).toBe(201);
+  });
+
+  it("validates the effective cover alt before publishing and on every published update", async () => {
+    await insertMedia("publish-cover", "Described magnolia cover", false);
+    const created = await create(productRoute, "editor", {
+      name: "Covered stem", slug: "covered-stem", productCode: "ES-COVERED", categoryId: "cat",
+      specifications: {}, summary: "Complete summary.", body: "Complete body.", coverMediaId: "publish-cover",
+    });
+    const draft = (await body<{ id: string; updatedAt: string }>(created)).data;
+    await database.prepare("UPDATE media SET alt_text = NULL WHERE id = 'publish-cover'").run();
+
+    const rejectedPublish = await mutate(productRoute, "editor", draft.id, { version: 1, action: "publish", updatedAt: draft.updatedAt });
+    expect(rejectedPublish.status).toBe(422);
+    await expect(rejectedPublish.json()).resolves.toMatchObject({ error: { code: "publish_validation", fields: { coverMediaId: expect.any(String) } } });
+
+    await database.prepare("UPDATE media SET alt_text = 'Restored magnolia description' WHERE id = 'publish-cover'").run();
+    const published = await mutate(productRoute, "editor", draft.id, { version: 1, action: "publish", updatedAt: draft.updatedAt });
+    expect(published.status).toBe(200);
+    const current = (await body<{ updatedAt: string }>(published)).data;
+    await database.prepare("UPDATE media SET alt_text = '' WHERE id = 'publish-cover'").run();
+
+    const rejectedUpdate = await mutate(productRoute, "editor", draft.id, {
+      version: 1, updatedAt: current.updatedAt, data: { summary: "Still complete, but the cover is not." },
+    });
+    expect(rejectedUpdate.status).toBe(422);
+    await expect(rejectedUpdate.json()).resolves.toMatchObject({ error: { code: "publish_validation", fields: { coverMediaId: expect.any(String) } } });
+  });
+
+  it("validates every gallery assignment before publishing and on published updates", async () => {
+    await insertMedia("gallery-media", "Default gallery description", false);
+    const created = await create(productRoute, "editor", {
+      name: "Gallery stem", slug: "gallery-stem", productCode: "ES-GALLERY", categoryId: "cat",
+      specifications: {}, summary: "Complete summary.", body: "Complete body.",
+    });
+    const draft = (await body<{ id: string; updatedAt: string }>(created)).data;
+    await database.prepare(`INSERT INTO product_images (id, product_id, media_id, alt_text, sort_order, is_cover, created_at)
+      VALUES ('invalid-gallery-row', ?, 'gallery-media', '白色花枝', 0, 0, ?)`).bind(draft.id, timestamp).run();
+
+    const rejectedPublish = await mutate(productRoute, "editor", draft.id, { version: 1, action: "publish", updatedAt: draft.updatedAt });
+    expect(rejectedPublish.status).toBe(422);
+    await expect(rejectedPublish.json()).resolves.toMatchObject({ error: { code: "publish_validation", fields: { gallery: expect.any(String) } } });
+
+    await database.prepare("UPDATE product_images SET alt_text = 'Renée’s gallery detail — close view' WHERE id = 'invalid-gallery-row'").run();
+    const published = await mutate(productRoute, "editor", draft.id, { version: 1, action: "publish", updatedAt: draft.updatedAt });
+    expect(published.status).toBe(200);
+    const current = (await body<{ updatedAt: string }>(published)).data;
+    await database.prepare("UPDATE product_images SET alt_text = '' WHERE id = 'invalid-gallery-row'").run();
+
+    const rejectedUpdate = await mutate(productRoute, "editor", draft.id, {
+      version: 1, updatedAt: current.updatedAt, data: { body: "A still-complete updated body." },
+    });
+    expect(rejectedUpdate.status).toBe(422);
+    await expect(rejectedUpdate.json()).resolves.toMatchObject({ error: { code: "publish_validation", fields: { gallery: expect.any(String) } } });
   });
 
   it("rolls back content when the required audit insert fails", async () => {
@@ -250,6 +328,11 @@ describe("admin content API", () => {
   function remove(route: Route, role: Role, id: string, updatedAt: string): Promise<Response> {
     return invoke(route, "DELETE", role, id, `/api/admin/content/${id}`, { version: 1, updatedAt });
   }
+
+  async function insertMedia(id: string, altText: string | null, deleted: boolean): Promise<void> {
+    await database.prepare(`INSERT INTO media (id, object_key, original_filename, mime_type, byte_size, alt_text, is_deleted, created_at, updated_at)
+      VALUES (?, ?, ?, 'image/jpeg', 10, ?, ?, ?, ?)`).bind(id, `${id}.jpg`, `${id}.jpg`, altText, deleted ? 1 : 0, timestamp, timestamp).run();
+  }
 });
 
 async function body<T>(response: Response): Promise<{ ok: true; data: T }> {
@@ -268,4 +351,10 @@ async function seedActorsAndCategory(database: D1Database): Promise<void> {
 
 async function applyMigration(database: D1Database, source: string): Promise<void> {
   for (const statement of source.split(";").map((entry) => entry.trim()).filter(Boolean)) await database.prepare(statement).run();
+}
+
+async function applyTriggerMigration(database: D1Database, source: string): Promise<void> {
+  for (const match of source.matchAll(/CREATE TRIGGER[\s\S]*?END;/gu)) {
+    await database.prepare(match[0].slice(0, -1)).run();
+  }
 }

@@ -29,11 +29,32 @@ export function initializeMediaLibrary(root: HTMLElement): void {
   grid.className = "media-library__grid";
   const listStatus = document.createElement("p");
   listStatus.setAttribute("aria-live", "polite");
-  root.replaceChildren(form, uploadStatus, search, listStatus, grid);
+  const previous = document.createElement("button");
+  previous.type = "button";
+  previous.className = "admin-secondary-button";
+  previous.textContent = "上一页";
+  const next = document.createElement("button");
+  next.type = "button";
+  next.className = "admin-secondary-button";
+  next.textContent = "下一页";
+  const pagination = document.createElement("nav");
+  pagination.className = "media-library__pagination";
+  pagination.setAttribute("aria-label", "媒体分页");
+  pagination.appendChild(previous);
+  pagination.appendChild(next);
+  root.replaceChildren(form, uploadStatus, search, listStatus, grid, pagination);
   let timer: number | undefined;
+  let currentPage = 1;
+  let totalPages = 1;
+  let loadSequence = 0;
 
   form.addEventListener("submit", (event) => { event.preventDefault(); void submit(); });
-  search.addEventListener("input", () => { window.clearTimeout(timer); timer = window.setTimeout(() => void load(), 200); });
+  search.addEventListener("input", () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => { currentPage = 1; void load(); }, 200);
+  });
+  previous.addEventListener("click", () => { if (currentPage > 1) { currentPage -= 1; void load(); } });
+  next.addEventListener("click", () => { if (currentPage < totalPages) { currentPage += 1; void load(); } });
   void load();
 
   async function submit(): Promise<void> {
@@ -58,6 +79,7 @@ export function initializeMediaLibrary(root: HTMLElement): void {
       }
       form.reset();
       uploadStatus.textContent = "上传成功。";
+      currentPage = 1;
       await load();
     } catch (error) {
       uploadStatus.setAttribute("role", "alert");
@@ -68,17 +90,27 @@ export function initializeMediaLibrary(root: HTMLElement): void {
   }
 
   async function load(): Promise<void> {
+    const sequence = ++loadSequence;
     listStatus.textContent = "正在加载媒体…";
     grid.replaceChildren();
-    const query = new URLSearchParams({ pageSize: "100" });
+    previous.disabled = true;
+    next.disabled = true;
+    const query = new URLSearchParams({ page: String(currentPage), pageSize: "24" });
     if (search.value.trim()) query.set("q", search.value.trim());
     try {
       const response = await fetch(`/api/admin/media?${query}`);
-      const body = await response.json() as { ok: boolean; data?: { items: MediaItem[] }; error?: { message?: string } };
+      const body = await response.json() as { ok: boolean; data?: { items: MediaItem[]; total: number; page: number; totalPages: number }; error?: { message?: string } };
       if (!response.ok || !body.ok || !body.data) throw new Error(body.error?.message ?? "无法加载媒体。");
-      listStatus.textContent = body.data.items.length ? `${body.data.items.length} 张图片` : "暂无媒体。";
+      if (sequence !== loadSequence) return;
+      currentPage = body.data.page;
+      totalPages = body.data.totalPages;
+      listStatus.removeAttribute("role");
+      listStatus.textContent = body.data.total ? `第 ${currentPage} / ${totalPages} 页，共 ${body.data.total} 张图片` : "暂无媒体。";
+      previous.disabled = currentPage <= 1;
+      next.disabled = currentPage >= totalPages;
       body.data.items.forEach(renderCard);
     } catch (error) {
+      if (sequence !== loadSequence) return;
       listStatus.setAttribute("role", "alert");
       listStatus.textContent = error instanceof Error ? error.message : "无法加载媒体。";
     }
@@ -126,6 +158,7 @@ export function initializeMediaLibrary(root: HTMLElement): void {
         throw new Error(body.error?.message ?? "无法删除媒体。");
       }
       card.remove();
+      await load();
     } catch (caught) {
       remove.disabled = false;
       error.setAttribute("role", "alert");

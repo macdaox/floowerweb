@@ -62,6 +62,42 @@ test("media upload validates real bytes and role access", async ({ page }) => {
   expect(status).toBe(403);
 });
 
+test("media library and gallery picker reach matching items beyond the first 100", async ({ page }) => {
+  const run = crypto.randomUUID().slice(0, 8);
+  await login(page, "e2e-editor@everstem.test");
+  await page.goto("/admin/media");
+  await page.getByLabel("搜索媒体").fill("E2E Bulk Media");
+  await expect(page.getByText("第 1 / 5 页，共 105 张图片")).toBeVisible();
+  for (let pageNumber = 2; pageNumber <= 5; pageNumber += 1) {
+    await page.getByRole("button", { name: "下一页" }).click();
+    await expect(page.getByText(`第 ${pageNumber} / 5 页，共 105 张图片`)).toBeVisible();
+  }
+  await expect(page.locator("[data-media-card]", { hasText: "E2E Bulk Media 001.jpg" })).toBeVisible();
+
+  await page.goto("/admin/products");
+  await page.getByRole("button", { name: "新建产品" }).click();
+  await page.getByLabel("名称").fill(`Picker pagination ${run}`);
+  await page.getByLabel("Slug").fill(`e2e-picker-pagination-${run}`);
+  await page.getByLabel("产品编号").fill(`E2E-PICKER-${run}`);
+  await page.getByLabel("分类", { exact: true }).selectOption({ label: "E2E Bulk Category 001" });
+  await page.getByLabel("摘要").fill("A product used to verify picker pagination.");
+  await page.getByLabel("正文").fill("A complete product description used to verify picker pagination.");
+  await page.getByRole("button", { name: "保存草稿" }).click();
+  await expect(page.locator("[data-editor-status]")).toContainText("已保存");
+
+  await page.getByRole("button", { name: "从媒体库添加" }).click();
+  const picker = page.getByRole("dialog", { name: "选择媒体" });
+  await picker.getByLabel("搜索媒体选择器").fill("E2E Bulk Media");
+  await picker.getByRole("button", { name: "搜索" }).click();
+  await expect(picker.getByText("已显示 24 / 105 张图片")).toBeVisible();
+  for (const loaded of [48, 72, 96, 105]) {
+    await picker.getByRole("button", { name: "加载更多媒体" }).click();
+    await expect(picker.getByText(`已显示 ${loaded} / 105 张图片`)).toBeVisible();
+  }
+  await picker.getByRole("button", { name: "选择 E2E Bulk Media 001.jpg" }).click();
+  await expect(page.locator("[data-gallery-item]", { hasText: "E2E Bulk Media 001.jpg" })).toBeVisible();
+});
+
 async function upload(page: Page, name: string, mimeType: string, buffer: Buffer, altText: string): Promise<void> {
   await page.getByLabel("图片文件").setInputFiles({ name, mimeType, buffer });
   await page.getByLabel("默认替代文本").fill(altText);

@@ -54,13 +54,20 @@ VALUES (${sql(`e2e-bulk-category-${suffix}`)}, 'en', ${sql(`E2E Bulk Category ${
     return `INSERT INTO spaces (id, locale, title, slug, category, status, created_at, updated_at)
 VALUES (${sql(`e2e-bulk-space-${suffix}`)}, 'en', ${sql(`E2E Bulk Space ${suffix}`)}, ${sql(`e2e-bulk-space-${suffix}`)}, ${sql(`E2E Space Category ${suffix}`)}, 'draft', ${sql(now)}, ${sql(now)});`;
   }).join("\n");
-  return `DELETE FROM product_images WHERE product_id IN (SELECT id FROM products WHERE slug LIKE 'e2e-%');
-DELETE FROM products WHERE slug LIKE 'e2e-%';
+  const bulkMedia = Array.from({ length: 105 }, (_, index) => {
+    const suffix = String(index + 1).padStart(3, "0");
+    const uuidTail = String(index + 1).padStart(12, "0");
+    return `INSERT INTO media (id, object_key, original_filename, mime_type, byte_size, alt_text, is_deleted, created_at, updated_at)
+VALUES (${sql(`e2e-bulk-media-${suffix}`)}, ${sql(`00000000-0000-4000-8000-${uuidTail}.jpg`)}, ${sql(`E2E Bulk Media ${suffix}.jpg`)}, 'image/jpeg', 10, ${sql(`E2E bulk magnolia image ${suffix}`)}, 0, '2000-01-01T00:00:00.000Z', '2000-01-01T00:00:00.000Z');`;
+  }).join("\n");
+  return `DELETE FROM product_images WHERE product_id IN (SELECT id FROM products WHERE slug LIKE 'e2e-%' OR slug LIKE 'picker-pagination-%');
+DELETE FROM products WHERE slug LIKE 'e2e-%' OR slug LIKE 'picker-pagination-%';
 DELETE FROM space_images WHERE space_id IN (SELECT id FROM spaces WHERE slug LIKE 'e2e-%');
 DELETE FROM spaces WHERE slug LIKE 'e2e-%';
 DELETE FROM articles WHERE slug LIKE 'e2e-%';
 DELETE FROM pages WHERE page_key LIKE 'e2e-%';
 DELETE FROM categories WHERE slug LIKE 'e2e-%';
+DELETE FROM media WHERE id LIKE 'e2e-bulk-media-%';
 DELETE FROM inquiry_interests WHERE inquiry_id LIKE 'e2e-dashboard-%';
 DELETE FROM inquiries WHERE id LIKE 'e2e-dashboard-%';
 DELETE FROM sessions WHERE user_id IN ('e2e-admin', 'e2e-editor', 'e2e-sales');
@@ -68,7 +75,8 @@ DELETE FROM rate_limits WHERE key = 'auth:login:unknown';
 ${users}
 ${inquiries}
 ${bulkCategories}
-${bulkSpaces}`;
+${bulkSpaces}
+${bulkMedia}`;
 }
 
 function sql(value: string): string {

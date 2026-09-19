@@ -3,6 +3,7 @@ import { issuePreviewToken, resolvePreviewSecret, type PreviewKind } from "../ad
 import type { AuthUser } from "../auth/authorize";
 import { HttpError } from "../../lib/http/errors";
 import { pageInsertStatement, pageUpdateStatement, type PageWriteStatement } from "./write";
+import { isMeaningfulEnglishAltText } from "../media/schemas";
 
 export type AdminEntity = PreviewKind;
 export type AdminStatus = "draft" | "published" | "archived";
@@ -129,6 +130,7 @@ export async function createAdminContent(db: D1Database, entity: AdminEntity, da
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   const values = withCreateDefaults(entity, data);
+  if (hasOwn(values, "coverMediaId")) await validateCoverMedia(db, entity, undefined, values.coverMediaId, "attachment");
   const fields = Object.keys(values);
   const mutation = entity === "page"
     ? preparePageStatement(db, () => pageInsertStatement({
@@ -150,7 +152,13 @@ export async function updateAdminContent(db: D1Database, entity: AdminEntity, id
   const current = await getAdminContent(db, entity, id);
   const nextUpdatedAt = nextTimestamp(String(current.updatedAt));
   const fields = Object.keys(data);
-  if (current.status === "published") validatePublish(entity, { ...current, ...data });
+  if (hasOwn(data, "coverMediaId")) await validateCoverMedia(db, entity, id, data.coverMediaId, "attachment");
+  if (current.status === "published") {
+    const merged = { ...current, ...data };
+    validatePublish(entity, merged);
+    await validateCoverMedia(db, entity, id, merged.coverMediaId, "publish");
+    await validateGalleryMedia(db, entity, id);
+  }
   const mutation = entity === "page"
     ? preparePageStatement(db, () => pageUpdateStatement({
       id, locale: "en", expectedUpdatedAt, updatedAt: nextUpdatedAt,
@@ -195,7 +203,11 @@ export async function transitionAdminContent(
     const expiresAt = new Date(Date.now() + 5 * 60_000).toISOString();
     return { token, url: `${config.previewPath(current)}?preview=${encodeURIComponent(token)}`, expiresAt };
   }
-  if (action === "publish") validatePublish(entity, current);
+  if (action === "publish") {
+    validatePublish(entity, current);
+    await validateCoverMedia(db, entity, id, current.coverMediaId, "publish");
+    await validateGalleryMedia(db, entity, id);
+  }
   const status: AdminStatus = action === "publish" ? "published" : action === "unpublish" ? "draft" : "archived";
   const nextUpdatedAt = nextTimestamp(current.updatedAt);
   const articlePublished = entity === "article" ? `, published_at = ${action === "publish" ? "COALESCE(published_at, ?)" : action === "unpublish" ? "NULL" : "published_at"}` : "";
@@ -236,6 +248,42 @@ function validatePublish(entity: AdminEntity, row: AdminResult): void {
   if (missing.length) {
     throw new HttpError("publish_validation", "Complete all public fields before publishing.", 422, Object.fromEntries(missing.map((field) => [field, "This field is required to publish."])));
   }
+}
+
+async function validateCoverMedia(
+  db: D1Database,
+  entity: AdminEntity,
+  contentId: string | undefined,
+  mediaId: unknown,
+  context: "attachment" | "publish",
+): Promise<void> {
+  if (entity === "page" || mediaId === null || mediaId === undefined || mediaId === "") return;
+  const assignment = contentId && (entity === "product" || entity === "space")
+    ? entity === "product"
+      ? "(SELECT pi.alt_text FROM product_images pi WHERE pi.product_id = ? AND pi.media_id = m.id LIMIT 1)"
+      : "(SELECT si.alt_text FROM space_images si WHERE si.space_id = ? AND si.media_id = m.id LIMIT 1)"
+    : null;
+  const row = assignment
+    ? await db.prepare(`SELECT COALESCE(${assignment}, m.alt_text) AS alt_text FROM media m WHERE m.id = ? AND m.is_deleted = 0 LIMIT 1`).bind(contentId, mediaId).first<{ alt_text: string | null }>()
+    : await db.prepare("SELECT alt_text FROM media WHERE id = ? AND is_deleted = 0 LIMIT 1").bind(mediaId).first<{ alt_text: string | null }>();
+  if (row && isMeaningfulEnglishAltText(row.alt_text)) return;
+  if (context === "publish") {
+    throw new HttpError("publish_validation", "Complete all public fields before publishing.", 422, { coverMediaId: "Choose an active image with meaningful English alternative text." });
+  }
+  throw new HttpError("invalid_media", "The selected cover image is unavailable or missing meaningful English alternative text.", 422, { coverMediaId: "Choose an active image with meaningful English alternative text." });
+}
+
+async function validateGalleryMedia(db: D1Database, entity: AdminEntity, contentId: string): Promise<void> {
+  if (entity !== "product" && entity !== "space") return;
+  const config = entity === "product"
+    ? { table: "product_images", parentColumn: "product_id" }
+    : { table: "space_images", parentColumn: "space_id" };
+  const rows = await db.prepare(`SELECT gallery.alt_text, media.id AS active_media_id
+    FROM ${config.table} gallery
+    LEFT JOIN media ON media.id = gallery.media_id AND media.is_deleted = 0
+    WHERE gallery.${config.parentColumn} = ?`).bind(contentId).all<{ alt_text: string | null; active_media_id: string | null }>();
+  if (rows.results.every((row) => row.active_media_id && isMeaningfulEnglishAltText(row.alt_text))) return;
+  throw new HttpError("publish_validation", "Complete all public fields before publishing.", 422, { gallery: "Every gallery image must be active and have meaningful English alternative text." });
 }
 
 function mapRow(entity: AdminEntity, row: Record<string, unknown>): AdminResult {
@@ -288,6 +336,10 @@ function nullableText(value: unknown): string | null | undefined {
   return value === undefined ? undefined : typeof value === "string" ? value : null;
 }
 
+function hasOwn(value: object, property: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, property);
+}
+
 function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   const result = schema.safeParse(value);
   if (result.success) return result.data;
@@ -311,6 +363,7 @@ function nextTimestamp(previous: string): string {
 
 function mapWriteError(error: unknown): HttpError {
   const message = error instanceof Error ? error.message : String(error);
+  if (/active media required/iu.test(message)) return new HttpError("invalid_media", "The selected image is unavailable.", 422, { coverMediaId: "Choose an active media item." });
   if (/UNIQUE constraint failed: .*\.(?:locale|slug)/iu.test(message) && /slug/iu.test(message)) return new HttpError("slug_conflict", "That English slug already exists.", 409, { slug: "This slug is already in use." });
   if (/UNIQUE constraint failed: products\.product_code/iu.test(message)) return new HttpError("product_code_conflict", "That product code already exists.", 409, { productCode: "This product code is already in use." });
   if (/UNIQUE constraint failed: pages\.(?:locale|page_key)/iu.test(message)) return new HttpError("page_key_conflict", "That English page key already exists.", 409, { pageKey: "This page key is already in use." });

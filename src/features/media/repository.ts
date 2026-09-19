@@ -132,7 +132,14 @@ export async function replaceGallery(db: D1Database, entity: GalleryEntity, cont
     db.prepare("INSERT INTO audit_logs (id, actor_user_id, action, entity_type, entity_id, context_text, created_at) VALUES (?, ?, 'gallery.update', ?, ?, ?, ?)")
       .bind(crypto.randomUUID(), actorUserId, entity, contentId, JSON.stringify({ mediaIds: items.map((item) => item.mediaId) }), now),
   ];
-  await db.batch(statements);
+  try {
+    await db.batch(statements);
+  } catch (error) {
+    if (/active media required/iu.test(error instanceof Error ? error.message : String(error))) {
+      throw new HttpError("invalid_media", "One or more selected images are unavailable.", 422, { items: "Select active media items." });
+    }
+    throw error;
+  }
   return getGallery(db, entity, contentId);
 }
 

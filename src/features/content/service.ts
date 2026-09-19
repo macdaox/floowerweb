@@ -49,10 +49,12 @@ export async function getPublishedSpace(db: D1Database, locale: string, slug: st
   const card = spaceCardFrom(row);
   if (!isSpaceCard(card)) return null;
   const [images, related] = await Promise.all([listSpaceImageRows(db, text(row.id)), listRelatedSpaceRows(db, locale, card.category, text(row.id))]);
+  const galleryImages = images.map(contentImageFromRow).filter((image): image is ContentImage => Boolean(image));
+  const preferredCover = card.image ? galleryImages.find((image) => image.src === card.image?.src) ?? card.image : undefined;
   return {
-    ...card,
+    ...card, image: preferredCover,
     id: text(row.id), body: text(row.body),
-    images: uniqueImages([card.image, ...images.map(contentImageFromRow)]),
+    images: uniqueImages([preferredCover, ...galleryImages]),
     relatedSpaces: related.map(spaceCardFrom).filter(isSpaceCard),
     seo: { title: text(row.seo_title) || `${card.title} | EVERSTEM`, description: text(row.seo_description) || card.summary },
   };
@@ -87,7 +89,9 @@ async function spaceDetailFromRow(db: D1Database, locale: string, row: Row): Pro
   const card = spaceCardFrom(row);
   if (!isSpaceCard(card)) return null;
   const [images, related] = await Promise.all([listSpaceImageRows(db, text(row.id)), listRelatedSpaceRows(db, locale, card.category, text(row.id))]);
-  return { ...card, id: text(row.id), body: text(row.body), images: uniqueImages([card.image, ...images.map(contentImageFromRow)]), relatedSpaces: related.map(spaceCardFrom).filter(isSpaceCard), seo: { title: text(row.seo_title) || `${card.title} | EVERSTEM`, description: text(row.seo_description) || card.summary } };
+  const galleryImages = images.map(contentImageFromRow).filter((image): image is ContentImage => Boolean(image));
+  const preferredCover = card.image ? galleryImages.find((image) => image.src === card.image?.src) ?? card.image : undefined;
+  return { ...card, image: preferredCover, id: text(row.id), body: text(row.body), images: uniqueImages([preferredCover, ...galleryImages]), relatedSpaces: related.map(spaceCardFrom).filter(isSpaceCard), seo: { title: text(row.seo_title) || `${card.title} | EVERSTEM`, description: text(row.seo_description) || card.summary } };
 }
 
 async function articleDetailFromRow(db: D1Database, locale: string, row: Row): Promise<ArticleDetail | null> {

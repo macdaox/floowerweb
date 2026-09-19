@@ -33,9 +33,13 @@ export async function getPublishedProductBySlug(db: D1Database, locale: string, 
     listProductImageRows(db, text(row.id)),
     listRelatedProductRows(db, locale, card.category.slug, text(row.id)),
   ]);
-  const images = [mediaFromRow(row), ...galleryRows.map(mediaFromRow)].filter((image): image is NonNullable<typeof image> => Boolean(image));
+  const cover = mediaFromRow(row);
+  const galleryImages = galleryRows.map(mediaFromRow).filter((image): image is NonNullable<typeof image> => Boolean(image));
+  const preferredCover = cover ? galleryImages.find((image) => image.src === cover.src) ?? cover : undefined;
+  const images = [preferredCover, ...galleryImages].filter((image): image is NonNullable<typeof image> => Boolean(image));
   return {
     ...card,
+    image: preferredCover,
     id: text(row.id),
     productCode: text(row.product_code),
     body: text(row.body),
@@ -74,9 +78,12 @@ async function detailFromRow(db: D1Database, locale: string, row: Row): Promise<
     listProductImageRows(db, text(row.id)),
     listRelatedProductRows(db, locale, card.category.slug, text(row.id)),
   ]);
-  const images = [mediaFromRow(row), ...galleryRows.map(mediaFromRow)].filter((image): image is NonNullable<typeof image> => Boolean(image));
+  const cover = mediaFromRow(row);
+  const galleryImages = galleryRows.map(mediaFromRow).filter((image): image is NonNullable<typeof image> => Boolean(image));
+  const preferredCover = cover ? galleryImages.find((image) => image.src === cover.src) ?? cover : undefined;
+  const images = [preferredCover, ...galleryImages].filter((image): image is NonNullable<typeof image> => Boolean(image));
   return {
-    ...card,
+    ...card, image: preferredCover,
     id: text(row.id), productCode: text(row.product_code), body: text(row.body), images: uniqueImages(images),
     specifications: specificationsFromJson(row.specifications_json), relatedProducts: relatedRows.map(cardFrom).filter(isCard),
     seo: { title: text(row.seo_title) || `${card.name} | EVERSTEM`, description: text(row.seo_description) || card.summary },

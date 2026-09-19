@@ -35,8 +35,7 @@ export type GalleryRecordItem = GalleryInputItem & {
 const optionalAltText = z.string().trim().max(300).nullable().optional();
 const nullableAltText = z.string().trim().max(300).nullable();
 const meaningfulEnglishAltText = z.string().trim().min(3).max(300)
-  .regex(/^[\x20-\x7e]+$/u, "Alternative text must be written in English.")
-  .regex(/[A-Za-z]/u, "Alternative text must describe the image in English.");
+  .refine(isMeaningfulEnglishAltText, "Alternative text must describe the image in English.");
 
 const galleryItem = z.object({
   mediaId: z.string().uuid(),
@@ -50,6 +49,14 @@ export function parseAltText(value: unknown): string | null {
 
 export function parseAltTextUpdate(value: unknown): { altText: string | null } {
   return parse(z.object({ version: z.literal(1), altText: nullableAltText }).strict(), value);
+}
+
+export function isMeaningfulEnglishAltText(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const normalized = value.trim();
+  if (normalized.length < 3 || normalized.length > 300 || /[\p{Cc}\p{Cf}]/u.test(normalized)) return false;
+  const letters = Array.from(normalized).filter((character) => /\p{L}/u.test(character));
+  return letters.length >= 3 && letters.every((character) => /\p{Script=Latin}/u.test(character));
 }
 
 export function publicMediaUrl(row: Record<string, unknown>): string | undefined {
