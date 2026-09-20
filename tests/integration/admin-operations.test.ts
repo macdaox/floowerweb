@@ -154,6 +154,26 @@ describe("admin operations", () => {
     expect((await database.prepare("SELECT COUNT(*) AS total FROM audit_logs WHERE entity_id = 'target-1'").first<{ total: number }>())?.total).toBe(2);
   });
 
+  it("lets only admins create unique PBKDF2-backed users without returning password hashes", async () => {
+    const payload = { version: 1, action: "create", email: "New.Editor@Everstem.Test", username: "new-editor", displayName: "New Editor", role: "editor", password: "a secure editor passphrase 2026" };
+    expect((await userRoute.POST(context("POST", "editor", "new", "/api/admin/users/new", payload))).status).toBe(403);
+
+    const created = await userRoute.POST(context("POST", "admin", "new", "/api/admin/users/new", payload));
+    expect(created.status).toBe(201);
+    const createdBody = await created.json() as { data: Record<string, unknown> };
+    expect(createdBody.data).toMatchObject({ email: "new.editor@everstem.test", username: "new-editor", displayName: "New Editor", role: "editor", isActive: true });
+    expect(createdBody.data).not.toHaveProperty("passwordHash");
+    expect(JSON.stringify(createdBody)).not.toContain("pbkdf2");
+    const stored = await database.prepare("SELECT id, password_hash AS passwordHash FROM users WHERE email = ?").bind("new.editor@everstem.test").first<{ id: string; passwordHash: string }>();
+    expect(await verifyPassword(payload.password, stored?.passwordHash ?? "")).toBe(true);
+    expect(await database.prepare("SELECT action, actor_user_id AS actorUserId FROM audit_logs WHERE entity_id = ?").bind(stored?.id).first()).toEqual({ action: "create", actorUserId: "admin-1" });
+
+    const duplicate = await userRoute.POST(context("POST", "admin", "new", "/api/admin/users/new", { ...payload, username: "another-name" }));
+    expect(duplicate.status).toBe(409);
+    await expect(duplicate.json()).resolves.toMatchObject({ error: { code: "user_conflict" } });
+    expect((await userRoute.POST(context("POST", "admin", "new", "/api/admin/users/new", { ...payload, email: "weak@example.test", username: "weak-user", password: "too-short" }))).status).toBe(422);
+  });
+
   it("preserves sessions when stale password-reset and deactivation compare-and-swap writes lose", async () => {
     await database.prepare("INSERT INTO sessions (id, token_digest, user_id, expires_at, created_at) VALUES ('preserved-session', 'preserved-digest', 'target-1', '2099-01-01', ?)").bind(initialTime).run();
     await database.prepare("UPDATE users SET updated_at = '2026-09-19T08:30:00.000Z' WHERE id = 'target-1'").run();

@@ -49,15 +49,18 @@ export async function updateMediaAltText(db: D1Database, id: string, altText: st
 }
 
 export async function findMediaReferences(db: D1Database, id: string): Promise<string[]> {
+  const media = await db.prepare("SELECT object_key FROM media WHERE id = ? LIMIT 1").bind(id).first<{ object_key: string }>();
+  if (!media) return [];
   const checks = [
-    ["category cover", "categories", "cover_media_id"],
-    ["product cover", "products", "cover_media_id"],
-    ["product gallery", "product_images", "media_id"],
-    ["space cover", "spaces", "cover_media_id"],
-    ["space gallery", "space_images", "media_id"],
-    ["article cover", "articles", "cover_media_id"],
+    ["category cover", "SELECT COUNT(*) AS count FROM categories WHERE cover_media_id = ?", id],
+    ["product cover", "SELECT COUNT(*) AS count FROM products WHERE cover_media_id = ?", id],
+    ["product gallery", "SELECT COUNT(*) AS count FROM product_images WHERE media_id = ?", id],
+    ["space cover", "SELECT COUNT(*) AS count FROM spaces WHERE cover_media_id = ?", id],
+    ["space gallery", "SELECT COUNT(*) AS count FROM space_images WHERE media_id = ?", id],
+    ["article cover", "SELECT COUNT(*) AS count FROM articles WHERE cover_media_id = ?", id],
+    ["page section", "SELECT COUNT(DISTINCT pages.id) AS count FROM pages, json_tree(pages.sections_json) AS node WHERE node.key = 'src' AND node.value = ?", `/media/${encodeURIComponent(media.object_key)}`],
   ] as const;
-  const results = await db.batch(checks.map(([, table, column]) => db.prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE ${column} = ?`).bind(id)));
+  const results = await db.batch(checks.map(([, sql, value]) => db.prepare(sql).bind(value)));
   return checks.filter((_, index) => Number((results[index].results?.[0] as { count?: number | string } | undefined)?.count ?? 0) > 0).map(([label]) => label);
 }
 
@@ -69,8 +72,10 @@ export async function markMediaDeleted(db: D1Database, id: string, timestamp: st
       AND NOT EXISTS (SELECT 1 FROM product_images WHERE media_id = ?)
       AND NOT EXISTS (SELECT 1 FROM spaces WHERE cover_media_id = ?)
       AND NOT EXISTS (SELECT 1 FROM space_images WHERE media_id = ?)
-      AND NOT EXISTS (SELECT 1 FROM articles WHERE cover_media_id = ?)`)
-    .bind(timestamp, timestamp, id, id, id, id, id, id, id);
+      AND NOT EXISTS (SELECT 1 FROM articles WHERE cover_media_id = ?)
+      AND NOT EXISTS (SELECT 1 FROM pages, json_tree(pages.sections_json) AS node
+        WHERE node.key = 'src' AND node.value = '/media/' || (SELECT object_key FROM media WHERE id = ?))`)
+    .bind(timestamp, timestamp, id, id, id, id, id, id, id, id);
   const statements = actorUserId ? [
     mutation,
     db.prepare("INSERT INTO audit_logs (id, actor_user_id, action, entity_type, entity_id, context_text, created_at) SELECT ?, ?, 'delete', 'media', ?, NULL, ? WHERE changes() = 1")

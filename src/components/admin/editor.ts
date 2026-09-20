@@ -1,4 +1,5 @@
 import { initializeGalleryEditor } from "./GalleryEditor";
+import { openMediaPicker, type MediaItem } from "./MediaPicker";
 
 export type ContentEntity = "products" | "categories" | "spaces" | "articles" | "pages";
 export type ContentRecord = Record<string, unknown> & { id?: string; updatedAt?: string; status?: string };
@@ -11,7 +12,7 @@ export type ContentEditorController = {
 type Field = {
   name: string;
   label: string;
-  kind?: "input" | "textarea" | "number" | "select";
+  kind?: "input" | "textarea" | "number" | "select" | "media" | "pageSections";
   required?: boolean;
   rows?: number;
 };
@@ -34,6 +35,7 @@ const fields: Record<ContentEntity, Field[]> = {
   categories: [
     { name: "name", label: "名称", required: true }, { name: "slug", label: "Slug", required: true },
     { name: "description", label: "描述", kind: "textarea", rows: 4 }, { name: "sortOrder", label: "排序", kind: "number" },
+    { name: "coverMediaId", label: "封面媒体", kind: "media" },
     { name: "seoTitle", label: "SEO 标题" }, { name: "seoDescription", label: "SEO 描述", kind: "textarea", rows: 2 },
   ],
   spaces: [
@@ -46,10 +48,10 @@ const fields: Record<ContentEntity, Field[]> = {
     { name: "title", label: "标题", required: true }, { name: "slug", label: "Slug", required: true },
     { name: "author", label: "作者" }, { name: "summary", label: "摘要", kind: "textarea", rows: 3 },
     { name: "body", label: "正文", kind: "textarea", rows: 8 }, { name: "seoTitle", label: "SEO 标题" },
-    { name: "seoDescription", label: "SEO 描述", kind: "textarea", rows: 2 },
+    { name: "coverMediaId", label: "封面媒体", kind: "media" }, { name: "seoDescription", label: "SEO 描述", kind: "textarea", rows: 2 },
   ],
   pages: [
-    { name: "pageKey", label: "页面键", required: true }, { name: "sections", label: "区块 JSON", kind: "textarea", rows: 12, required: true },
+    { name: "pageKey", label: "页面键", required: true }, { name: "sections", label: "区块 JSON", kind: "pageSections", rows: 12, required: true },
     { name: "seoTitle", label: "SEO 标题" }, { name: "seoDescription", label: "SEO 描述", kind: "textarea", rows: 2 },
   ],
 };
@@ -98,6 +100,8 @@ export function initializeContentEditor(root: HTMLElement, options?: EditorOptio
     error.setAttribute("role", "alert");
     group.appendChild(label);
     group.appendChild(control);
+    if (field.kind === "media") addMediaPickerControls(group, control as HTMLInputElement);
+    if (field.kind === "pageSections") addPageMediaControls(group, control as HTMLTextAreaElement);
     group.appendChild(error);
     fieldset.appendChild(group);
     fieldErrors.set(field.name, error);
@@ -283,12 +287,51 @@ function readForm(form: HTMLFormElement, entity: ContentEntity): Record<string, 
 }
 
 function createControl(field: Field): HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement {
-  if (field.kind === "textarea") { const control = document.createElement("textarea"); control.rows = field.rows ?? 4; return control; }
+  if (field.kind === "textarea" || field.kind === "pageSections") { const control = document.createElement("textarea"); control.rows = field.rows ?? 4; return control; }
   if (field.kind === "select") { const control = document.createElement("select"); const option = document.createElement("option"); option.value = ""; option.textContent = "选择分类"; control.appendChild(option); return control; }
   const control = document.createElement("input");
+  if (field.kind === "media") control.readOnly = true;
   control.type = field.kind === "number" ? "number" : "text";
   if (field.kind === "number") { control.min = "0"; control.step = "1"; }
   return control;
+}
+
+function addMediaPickerControls(group: HTMLElement, control: HTMLInputElement): void {
+  const choose = button("从媒体库选择封面", "admin-secondary-button");
+  const clear = button("清除封面", "admin-link-button");
+  choose.addEventListener("click", async () => {
+    const selected = await openMediaPicker();
+    if (!selected) return;
+    control.value = selected.id;
+    control.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  clear.addEventListener("click", () => {
+    control.value = "";
+    control.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  group.appendChild(choose);
+  group.appendChild(clear);
+}
+
+function addPageMediaControls(group: HTMLElement, control: HTMLTextAreaElement): void {
+  const choose = button("从媒体库添加图片区块", "admin-secondary-button");
+  choose.addEventListener("click", async () => {
+    let sections: unknown;
+    try { sections = JSON.parse(control.value || "[]"); } catch { sections = []; }
+    const selected = await openMediaPicker();
+    if (!selected) return;
+    control.value = JSON.stringify(appendPageMediaBlock(sections, selected), null, 2);
+    control.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  group.appendChild(choose);
+}
+
+export function appendPageMediaBlock(sections: unknown, media: MediaItem): unknown[] {
+  const current = Array.isArray(sections) ? sections : [];
+  return [...current, {
+    type: "imageText", title: "New image section", body: "Add section copy.",
+    image: { src: media.url, alt: media.altText || media.originalFilename },
+  }];
 }
 
 function setValue(control: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement, name: string, value: unknown): void {

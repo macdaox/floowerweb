@@ -2,9 +2,11 @@
 import type { PageBlock } from "../../features/content/schemas";
 import ResponsiveImage from "./ResponsiveImage.astro";
 
-interface Props { sections: PageBlock[]; }
-const { sections } = Astro.props;
-const leadingImageIndex = sections.findIndex((section) => (section.type === "hero" && Boolean(section.image)) || section.type === "imageText");
+interface Props { sections: PageBlock[]; reveal?: boolean; prioritizeLeadingImage?: boolean; }
+const { sections, reveal = false, prioritizeLeadingImage = true } = Astro.props;
+const leadingImageIndex = prioritizeLeadingImage
+  ? sections.findIndex((section) => (section.type === "hero" && Boolean(section.image)) || section.type === "imageText")
+  : -1;
 ---
 
 {sections.map((section, index) => {
@@ -18,9 +20,9 @@ const leadingImageIndex = sections.findIndex((section) => (section.type === "her
       {section.heading && <h2>{section.heading}</h2>}
       <div>{section.document.content.map((paragraph) => <p>{paragraph.content?.map((node) => node.text).join("")}</p>)}</div>
     </section>;
-    case "imageText": return <section class:list={["content-image-text", "section", section.reversed && "content-image-text-reversed"]}>
-      <figure><ResponsiveImage image={section.image} fallbackWidth={1400} fallbackHeight={1200} widths={[480, 800, 1400]} sizes="(max-width: 800px) 100vw, 50vw" loading={index === leadingImageIndex ? "eager" : "lazy"} fetchpriority={index === leadingImageIndex ? "high" : undefined} /></figure>
-      <div><p class="eyebrow">{section.eyebrow}</p><h2>{section.title}</h2><p>{section.body}</p></div>
+    case "imageText": return <section class:list={["content-image-text", "section", reveal && "detail", section.reversed && "content-image-text-reversed"]}>
+      <figure class:list={[reveal && "detail-visual"]}><ResponsiveImage image={section.image} fallbackWidth={1400} fallbackHeight={1200} widths={[480, 800, 1400]} sizes="(max-width: 800px) 100vw, 50vw" loading={index === leadingImageIndex ? "eager" : "lazy"} fetchpriority={index === leadingImageIndex ? "high" : undefined} /></figure>
+      <div class:list={[reveal && "detail-copy"]} data-reveal={reveal ? "" : undefined}><p class="eyebrow">{section.eyebrow}</p><h2>{section.title}</h2><p>{section.body}</p></div>
     </section>;
     case "capabilities": return <section class="content-capabilities section">
       <header><p class="eyebrow">{section.eyebrow}</p><h2>{section.title}</h2></header>

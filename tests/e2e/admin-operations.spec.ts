@@ -62,6 +62,13 @@ test("admin manages users and settings while editor is denied", async ({ page })
   await logout(page);
   await login(page, "e2e-admin@everstem.test");
   await page.goto("/admin/users");
+  await page.getByRole("form", { name: "创建用户" }).getByLabel("邮箱").fill("e2e-created@everstem.test");
+  await page.getByRole("form", { name: "创建用户" }).getByLabel("用户名").fill("e2e-created");
+  await page.getByRole("form", { name: "创建用户" }).getByLabel("显示名称").fill("E2E Created User");
+  await page.getByRole("form", { name: "创建用户" }).getByLabel("初始密码").fill("E2E created passphrase 2026!");
+  await page.getByLabel("新用户角色").selectOption("editor");
+  await page.getByRole("button", { name: "创建用户" }).click();
+  await expect(page.getByRole("row", { name: /E2E Created User/ })).toBeVisible();
   const row = page.getByRole("row", { name: /E2E Managed User/ });
   await row.getByLabel("角色").selectOption("sales");
   await row.getByRole("button", { name: "保存用户" }).click();

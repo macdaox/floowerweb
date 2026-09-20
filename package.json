@@ -8,6 +8,7 @@
     "preview": "wrangler pages dev ./dist",
     "test": "vitest",
     "test:e2e": "playwright test",
+    "test:smoke": "npm run build && npm run db:migrate:local && npm run db:seed:local && playwright test tests/e2e/smoke.spec.ts --config playwright.smoke.config.ts",
     "db:migrate:local": "wrangler d1 migrations apply everstem-preview --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "db:seed:local": "tsx scripts/seed-runner.ts --local",
@@ -17,8 +18,8 @@
   },
   "devDependencies": {
     "@astrojs/check": "0.9.4",
-    "@astrojs/cloudflare": "12.3.0",
-    "@cloudflare/workers-types": "4.20251011.0",
+    "@astrojs/cloudflare": "12.6.13",
+    "@cloudflare/workers-types": "5.20260920.1",
     "@playwright/test": "1.52.0",
     "astro": "5.15.0",
     "drizzle-kit": "^0.31.4",
@@ -26,7 +27,7 @@
     "tsx": "^4.20.6",
     "typescript": "5.8.3",
     "vitest": "2.1.9",
-    "wrangler": "4.2.0"
+    "wrangler": "4.135.0"
   },
   "dependencies": {
     "drizzle-orm": "^0.44.6",

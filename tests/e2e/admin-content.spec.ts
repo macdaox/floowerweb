@@ -8,6 +8,7 @@ test("an editor creates, previews, publishes, and archives content with dirty-fo
   await page.getByLabel("名称").fill("E2E Botanicals");
   await page.getByLabel("Slug").fill("e2e-botanicals");
   await page.getByLabel("描述", { exact: true }).fill("A category created in the browser flow.");
+  await chooseMedia(page, "从媒体库选择封面", "E2E Bulk Media 105.jpg");
   await page.getByRole("button", { name: "保存草稿" }).click();
   await expect(page.locator("[data-editor-status]")).toContainText("已保存");
 
@@ -112,12 +113,15 @@ test("spaces, articles, and pages support lifecycle actions and surface a real o
   await page.getByLabel("作者").fill("EVERSTEM Studio");
   await page.getByLabel("摘要").fill("A browser-created note on materials.");
   await page.getByLabel("正文").fill("The complete browser-created journal article.");
+  await chooseMedia(page, "从媒体库选择封面", "E2E Bulk Media 104.jpg");
   await saveEditPublishArchive(page, "作者", "EVERSTEM Editorial Team", "E2E Material Note");
 
   await page.goto("/admin/pages");
   await page.getByRole("button", { name: "新建页面" }).click();
   await page.getByLabel("页面键").fill("e2e-studio-page");
   await page.getByLabel("区块 JSON").fill('[{"type":"hero","title":"E2E Studio","body":"A modular browser page."}]');
+  await chooseMedia(page, "从媒体库添加图片区块", "E2E Bulk Media 103.jpg");
+  await expect(page.getByLabel("区块 JSON")).toHaveValue(/\/media\/00000000-0000-4000-8000-000000000103\.jpg/);
   await page.getByLabel("SEO 标题").fill("E2E Studio");
   await page.getByLabel("SEO 描述").fill("A browser-created modular page.");
   await saveEditPublishArchive(page, "SEO 标题", "E2E Studio Page", "E2E Studio");
@@ -167,6 +171,14 @@ async function openPreview(page: Page, heading: string): Promise<void> {
   await expect(previewPage.locator('link[rel="canonical"]')).not.toHaveAttribute("href", /preview=/);
   expect((await previewPage.request.get(previewPage.url())).headers()["x-robots-tag"]).toBe("noindex, nofollow");
   await previewPage.close();
+}
+
+async function chooseMedia(page: Page, buttonName: string, filename: string): Promise<void> {
+  await page.getByRole("button", { name: buttonName }).click();
+  const picker = page.getByRole("dialog", { name: "选择媒体" });
+  await picker.getByRole("searchbox").fill(filename);
+  await picker.getByRole("button", { name: "搜索" }).click();
+  await picker.getByRole("button", { name: `选择 ${filename}` }).click();
 }
 
 async function loginAsEditor(page: Page): Promise<void> {

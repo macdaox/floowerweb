@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { z } from "zod";
 import { requireRole, type AuthUser } from "../../../../features/auth/authorize";
 import { hashPassword } from "../../../../features/auth/password";
+import { assertStrongAdminPassword } from "../../../../features/auth/schemas";
 import { HttpError } from "../../../../lib/http/errors";
 import { assertAllowedOrigin } from "../../../../lib/http/origin";
 import { parseJson } from "../../../../lib/http/request";
@@ -14,7 +15,15 @@ const updateSchema = z.object({
 const resetSchema = z.object({
   version: z.literal(1).optional(), action: z.literal("resetPassword"), updatedAt: z.string().datetime(), password: z.string().min(12).max(256),
 }).strict();
-const payloadSchema = z.union([updateSchema, resetSchema]);
+const createSchema = z.object({
+  version: z.literal(1), action: z.literal("create"),
+  email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()),
+  username: z.string().trim().min(2).max(80).regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u),
+  displayName: z.string().trim().min(1).max(120), role: z.enum(["admin", "editor", "sales"]),
+  password: z.string().max(1_024),
+}).strict();
+const payloadSchema = z.union([createSchema, updateSchema, resetSchema]);
+type UserMutationPayload = z.infer<typeof updateSchema> | z.infer<typeof resetSchema>;
 type UserRow = { id: string; role: "admin" | "editor" | "sales"; isActive: number | boolean; updatedAt: string };
 
 export const GET: APIRoute = async ({ request, locals, params }) => {
@@ -57,6 +66,11 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
     if (!params.id || params.id === "list") throw new HttpError("not_found", "A user id is required.", 404);
     const parsed = payloadSchema.safeParse(await parseJson<unknown>(request, 16_000));
     if (!parsed.success) throw new HttpError("invalid_payload", "The user operation is invalid.", 422);
+    if (params.id === "new") {
+      if (parsed.data.action !== "create") throw new HttpError("invalid_payload", "The user operation is invalid.", 422);
+      return ok(await createUser(locals.runtime.env.DB, parsed.data, actor), 201);
+    }
+    if (parsed.data.action === "create") throw new HttpError("invalid_payload", "The user operation is invalid.", 422);
     const current = await locals.runtime.env.DB.prepare("SELECT id, role, is_active AS isActive, updated_at AS updatedAt FROM users WHERE id = ?").bind(params.id).first<UserRow>();
     if (!current) throw new HttpError("not_found", "User was not found.", 404);
     if (current.id === actor.id && parsed.data.action === "update" && (parsed.data.role && parsed.data.role !== "admin" || parsed.data.isActive === false)) {
@@ -68,7 +82,35 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
   }
 };
 
-async function mutateUser(db: D1Database, current: UserRow, payload: z.infer<typeof payloadSchema>, actor: AuthUser) {
+async function createUser(db: D1Database, payload: z.infer<typeof createSchema>, actor: AuthUser) {
+  try {
+    assertStrongAdminPassword(payload.password);
+  } catch {
+    throw new HttpError("weak_password", "Use a passphrase with at least 15 non-whitespace characters.", 422, { password: "Use at least 15 non-whitespace characters." });
+  }
+  const id = crypto.randomUUID();
+  const timestamp = new Date().toISOString();
+  try {
+    await db.batch([
+      db.prepare(`INSERT INTO users (id, email, username, display_name, password_hash, role, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`)
+        .bind(id, payload.email, payload.username, payload.displayName, await hashPassword(payload.password), payload.role, timestamp, timestamp),
+      db.prepare(`INSERT INTO audit_logs (id, actor_user_id, action, entity_type, entity_id, context_text, created_at)
+        VALUES (?, ?, 'create', 'user', ?, ?, ?)`)
+        .bind(crypto.randomUUID(), actor.id, id, JSON.stringify({ email: payload.email, username: payload.username, role: payload.role }), timestamp),
+    ]);
+  } catch (error) {
+    if (/UNIQUE constraint failed: users\.(?:email|username)/iu.test(error instanceof Error ? error.message : String(error))) {
+      throw new HttpError("user_conflict", "A user with this email or username already exists.", 409, { email: "Use a unique email and username." });
+    }
+    throw error;
+  }
+  const created = await readUser(db, id);
+  if (!created) throw new HttpError("not_found", "User was not found.", 404);
+  return created;
+}
+
+async function mutateUser(db: D1Database, current: UserRow, payload: UserMutationPayload, actor: AuthUser) {
   const timestamp = nextTimestamp(current.updatedAt);
   const auditId = crypto.randomUUID();
   let mutation: D1PreparedStatement;
@@ -106,7 +148,7 @@ async function mutateUser(db: D1Database, current: UserRow, payload: z.infer<typ
   return updated;
 }
 
-async function throwUserWriteFailure(db: D1Database, attempted: UserRow, payload: z.infer<typeof payloadSchema>): Promise<never> {
+async function throwUserWriteFailure(db: D1Database, attempted: UserRow, payload: UserMutationPayload): Promise<never> {
   const latest = await db.prepare("SELECT id, role, is_active AS isActive, updated_at AS updatedAt FROM users WHERE id = ?").bind(attempted.id).first<UserRow>();
   if (!latest) throw new HttpError("not_found", "User was not found.", 404);
   if (latest.updatedAt !== payload.updatedAt) throw editConflict();

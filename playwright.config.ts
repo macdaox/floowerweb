@@ -4,6 +4,7 @@ export default defineConfig({
   testDir: "./tests/e2e",
   globalSetup: "./tests/e2e/global-setup.ts",
   fullyParallel: true,
+  workers: 2,
   reporter: "list",
   use: {
     baseURL: "http://127.0.0.1:4321",

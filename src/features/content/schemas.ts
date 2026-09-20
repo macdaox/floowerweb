@@ -1,4 +1,4 @@
-import { publicMediaUrl } from "../media/schemas";
+import { isMeaningfulEnglishAltText, mediaObjectKeyFromPublicUrl, publicMediaUrl } from "../media/schemas";
 
 export interface ContentImage {
   src: string;
@@ -77,6 +77,17 @@ export function serializePageBlocks(value: unknown): string {
   return JSON.stringify(parsePageBlocks(value));
 }
 
+export function pageMediaObjectKeys(value: unknown): string[] {
+  const keys = new Set<string>();
+  for (const block of parsePageBlocks(value)) {
+    const image = block.type === "hero" || block.type === "imageText" ? block.image : undefined;
+    if (!image) continue;
+    const key = mediaObjectKeyFromPublicUrl(image.src);
+    if (key) keys.add(key);
+  }
+  return [...keys];
+}
+
 export function contentImageFromRow(row: Record<string, unknown>): ContentImage | undefined {
   const src = publicMediaUrl(row);
   if (!src) return undefined;
@@ -119,7 +130,9 @@ function parseRichText(value: unknown): RichTextDocument {
 
 function parseImage(value: unknown): ContentImage {
   if (!isRecord(value) || typeof value.src !== "string" || !safeImageSrc(value.src)) throw new Error("Invalid content image");
-  return { src: value.src, alt: typeof value.alt === "string" ? value.alt : "EVERSTEM botanical object" };
+  const alt = typeof value.alt === "string" ? value.alt.trim() : "";
+  if (mediaObjectKeyFromPublicUrl(value.src) && !isMeaningfulEnglishAltText(alt)) throw new Error("Invalid content image alternative text");
+  return { src: value.src, alt: alt || "EVERSTEM botanical object" };
 }
 function optionalImage(value: unknown): ContentImage | undefined { return value === undefined ? undefined : parseImage(value); }
 function parseItems(value: unknown): string[] {
@@ -131,7 +144,9 @@ function safeHref(value: unknown): string {
   if (!href.startsWith("/") || href.startsWith("//")) throw new Error("Invalid CTA link");
   return href;
 }
-function safeImageSrc(value: string): boolean { return value.startsWith("/assets/") && !value.includes("..") && value.length <= 512; }
+function safeImageSrc(value: string): boolean {
+  return value.length <= 512 && (value.startsWith("/assets/") && !value.includes("..") || Boolean(mediaObjectKeyFromPublicUrl(value)));
+}
 function requiredText(value: unknown, label: string): string { if (typeof value !== "string" || !value.trim() || value.length > 4_000) throw new Error(`Invalid ${label}`); return value; }
 function optionalText(value: unknown): string | undefined { return typeof value === "string" && value.trim() && value.length <= 4_000 ? value : undefined; }
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }

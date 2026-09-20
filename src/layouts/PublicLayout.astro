@@ -4,12 +4,13 @@ import Header from "../components/public/Header.astro";
 import SeoHead from "../components/public/SeoHead.astro";
 import StructuredData from "../components/public/StructuredData.astro";
 import { resolvePublicSiteOrigin } from "../features/public/site-origin";
+import { loadPublicSiteSettings } from "../features/public/settings";
 import "../styles/global.css";
 import "../styles/public.css";
 
 export interface Props {
-  title: string;
-  description: string;
+  title?: string;
+  description?: string;
   canonical?: string;
   socialImage?: string;
   socialImageAlt?: string;
@@ -20,22 +21,29 @@ export interface Props {
   companyName?: string;
   tagline?: string;
   social?: { instagramUrl?: string; pinterestUrl?: string; linkedinUrl?: string };
+  contactEmail?: string;
 }
 
 const {
   title, description, canonical, socialImage, socialImageAlt, ogType, noindex = false,
-  structuredData = [], theme = "transparent", companyName = "EVERSTEM",
-  tagline = "Botanical objects for contemporary spaces.", social,
+  structuredData = [], theme = "transparent", companyName, tagline, social, contactEmail,
 } = Astro.props;
+const siteSettings = await loadPublicSiteSettings(Astro.locals.runtime?.env?.DB);
+const resolvedCompanyName = companyName?.trim() || siteSettings.companyName;
+const resolvedTagline = tagline?.trim() || siteSettings.tagline;
+const resolvedSocial = social ?? siteSettings;
+const resolvedContactEmail = contactEmail?.trim() || siteSettings.contactEmail;
+const resolvedTitle = title?.trim() || siteSettings.defaultSeoTitle;
+const resolvedDescription = description?.trim() || siteSettings.defaultSeoDescription;
 const submitted = Astro.url.searchParams.get("submitted");
 const origin = resolvePublicSiteOrigin(Astro.locals.runtime?.env?.PUBLIC_SITE_URL);
-const sameAs = [social?.instagramUrl, social?.pinterestUrl, social?.linkedinUrl].filter(Boolean);
+const sameAs = [resolvedSocial?.instagramUrl, resolvedSocial?.pinterestUrl, resolvedSocial?.linkedinUrl].filter(Boolean);
 const organization = {
   "@type": "Organization",
   "@id": `${origin}/#organization`,
-  name: companyName,
+  name: resolvedCompanyName,
   url: `${origin}/`,
-  description: tagline,
+  description: siteSettings.companyDescription || resolvedTagline,
   ...(sameAs.length ? { sameAs } : {}),
 };
 ---
@@ -46,7 +54,7 @@ const organization = {
     <script is:inline>document.documentElement.classList.add("js");</script>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <SeoHead origin={origin} title={title} description={description} canonical={canonical} socialImage={socialImage} socialImageAlt={socialImageAlt} type={ogType} noindex={noindex} />
+    <SeoHead origin={origin} title={resolvedTitle} description={resolvedDescription} canonical={canonical} socialImage={socialImage} socialImageAlt={socialImageAlt} type={ogType} noindex={noindex} />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23332d27'/%3E%3Cpath d='M19 15h27v6H26v8h17v6H26v8h21v6H19z' fill='%23f3f0e8'/%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=Manrope:wght@400;500&display=swap" rel="stylesheet" />
@@ -54,9 +62,9 @@ const organization = {
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
-    <Header theme={theme} />
+    <Header theme={theme} companyName={resolvedCompanyName} />
     <main id="main" tabindex="-1">{submitted && <p class="submission-notice" role="status">{submitted === "subscriber" ? "You’re subscribed. Thank you." : "Thank you. Your enquiry has been received."}</p>}<slot /></main>
-    <Footer companyName={companyName} tagline={tagline} social={social} />
+    <Footer companyName={resolvedCompanyName} tagline={resolvedTagline} contactEmail={resolvedContactEmail} social={resolvedSocial} />
     <script>
       import { initializeInquiryForms } from "../components/public/InquiryForm";
       import { initializeNewsletterForms } from "../components/public/NewsletterForm";

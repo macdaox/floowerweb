@@ -50,11 +50,30 @@ describe("loadHomeContent", () => {
     const content = await loadHomeContent(d1(partialRows));
 
     expect(content.hero).toMatchObject({ eyebrow: "Edited wholesale botanicals", title: "A changed hero.", image: { src: "/assets/custom-hero.png", alt: "An editor-selected hero image" } });
+    expect(content.sections).toEqual([]);
     expect(content.categories.map((category) => category.name)).toEqual(["Published one", "Published two", "Published three", "Published four"]);
     expect(content.products).toEqual([]);
     expect(content.articles.map((article) => article.title)).toEqual(["Only published article"]);
     expect(content.space).toBeUndefined();
-    expect(content.settings.companyName).toBe("Edited EVERSTEM");
+  });
+
+  it("returns every validated non-hero home section saved by the page editor", async () => {
+    const content = await loadHomeContent(d1({
+      ...partialRows,
+      page: {
+        ...partialRows.page!,
+        sections_json: JSON.stringify([
+          { type: "hero", eyebrow: "Edited", title: "Edited home" },
+          { type: "richText", heading: "Managed statement", document: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Saved in page sections." }] }] } },
+          { type: "cta", title: "Managed trade callout", label: "Contact", href: "/contact" },
+        ]),
+      },
+    }));
+
+    expect(content.sections).toEqual([
+      expect.objectContaining({ type: "richText", heading: "Managed statement" }),
+      expect.objectContaining({ type: "cta", title: "Managed trade callout" }),
+    ]);
   });
 
   it("degrades an invalid page hero image instead of restoring a seeded image", async () => {

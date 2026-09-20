@@ -1,16 +1,17 @@
 ---
 interface Props {
   theme?: "light" | "dark" | "transparent";
+  companyName?: string;
 }
 
-const { theme = "transparent" } = Astro.props;
+const { theme = "transparent", companyName = "EVERSTEM" } = Astro.props;
 const navigation = [
   ["Home", "/"], ["Collections", "/collections"], ["Spaces", "/spaces"], ["Journal", "/journal"], ["About Us", "/about"], ["Contact Us", "/contact"],
 ] as const;
 ---
 
 <header class:list={["site-header", `site-header-${theme}`]}>
-  <a class="wordmark" href="/" aria-label="EVERSTEM home">EVERSTEM</a>
+  <a class="wordmark" href="/" aria-label={`${companyName} home`}>{companyName}</a>
   <button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-navigation" data-menu-button><span>Menu</span><i></i><i></i></button>
   <nav id="primary-navigation" class="primary-nav" aria-label="Primary navigation" data-menu>
     {navigation.map(([label, href]) => <a href={href}>{label}</a>)}

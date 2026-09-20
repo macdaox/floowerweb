@@ -4,6 +4,7 @@ import type { AuthUser } from "../auth/authorize";
 import { HttpError } from "../../lib/http/errors";
 import { pageInsertStatement, pageUpdateStatement, type PageWriteStatement } from "./write";
 import { isMeaningfulEnglishAltText } from "../media/schemas";
+import { pageMediaObjectKeys } from "./schemas";
 
 export type AdminEntity = PreviewKind;
 export type AdminStatus = "draft" | "published" | "archived";
@@ -131,6 +132,7 @@ export async function createAdminContent(db: D1Database, entity: AdminEntity, da
   const now = new Date().toISOString();
   const values = withCreateDefaults(entity, data);
   if (hasOwn(values, "coverMediaId")) await validateCoverMedia(db, entity, undefined, values.coverMediaId, "attachment");
+  if (entity === "page") await validatePageMedia(db, values.sections);
   const fields = Object.keys(values);
   const mutation = entity === "page"
     ? preparePageStatement(db, () => pageInsertStatement({
@@ -153,6 +155,7 @@ export async function updateAdminContent(db: D1Database, entity: AdminEntity, id
   const nextUpdatedAt = nextTimestamp(String(current.updatedAt));
   const fields = Object.keys(data);
   if (hasOwn(data, "coverMediaId")) await validateCoverMedia(db, entity, id, data.coverMediaId, "attachment");
+  if (entity === "page" && hasOwn(data, "sections")) await validatePageMedia(db, data.sections);
   if (current.status === "published") {
     const merged = { ...current, ...data };
     validatePublish(entity, merged);
@@ -284,6 +287,21 @@ async function validateGalleryMedia(db: D1Database, entity: AdminEntity, content
     WHERE gallery.${config.parentColumn} = ?`).bind(contentId).all<{ alt_text: string | null; active_media_id: string | null }>();
   if (rows.results.every((row) => row.active_media_id && isMeaningfulEnglishAltText(row.alt_text))) return;
   throw new HttpError("publish_validation", "Complete all public fields before publishing.", 422, { gallery: "Every gallery image must be active and have meaningful English alternative text." });
+}
+
+async function validatePageMedia(db: D1Database, sections: unknown): Promise<void> {
+  let keys: string[];
+  try {
+    keys = pageMediaObjectKeys(sections);
+  } catch (error) {
+    throw new HttpError("invalid_payload", error instanceof Error ? error.message : "Invalid page sections.", 422, { sections: "Use supported page blocks." });
+  }
+  if (!keys.length) return;
+  const placeholders = keys.map(() => "?").join(", ");
+  const rows = await db.prepare(`SELECT object_key FROM media WHERE is_deleted = 0 AND object_key IN (${placeholders})`).bind(...keys).all<{ object_key: string }>();
+  if (rows.results.length !== keys.length) {
+    throw new HttpError("invalid_media", "One or more page images are unavailable.", 422, { sections: "Choose active images from the media library." });
+  }
 }
 
 function mapRow(entity: AdminEntity, row: Record<string, unknown>): AdminResult {

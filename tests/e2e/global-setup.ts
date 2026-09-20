@@ -133,6 +133,7 @@ DELETE FROM audit_logs WHERE entity_id LIKE 'e2e-dashboard-%' OR entity_id = 'e2
 DELETE FROM inquiries WHERE id LIKE 'e2e-dashboard-%';
 DELETE FROM subscribers WHERE id LIKE 'e2e-subscriber%';
 DELETE FROM sessions WHERE user_id IN ('e2e-admin', 'e2e-editor', 'e2e-sales', 'e2e-managed');
+DELETE FROM users WHERE email = 'e2e-created@everstem.test';
 DELETE FROM rate_limits WHERE key = 'auth:login:unknown';
 ${users}
 ${inquiries}

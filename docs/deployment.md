@@ -2,6 +2,8 @@
 
 This project deploys to Cloudflare Pages with D1 (`DB`) and R2 (`MEDIA`). Production and preview must use separate databases and buckets. GitHub `main` is the production branch; pull requests create previews.
 
+Before release, run `npm run test:smoke`. It creates the production build, prepares the local D1 seed, starts `wrangler pages dev ./dist` with local D1/R2 bindings, and checks critical public and admin-login routes against that built output.
+
 ## 1. Prepare the repository
 
 Use Node.js 20+ and npm 10+.

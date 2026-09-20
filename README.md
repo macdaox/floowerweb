@@ -23,6 +23,7 @@ Open the public site at `http://127.0.0.1:4321` and the Chinese admin at `http:/
 npm run typecheck
 npm test -- --run
 npm run test:e2e
+npm run test:smoke
 npm run build
 ```
 

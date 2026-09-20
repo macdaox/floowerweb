@@ -230,6 +230,18 @@ describe("R2 media management", () => {
       .resolves.toEqual({ action: "delete", entity_type: "media", entity_id: unused.id, actor_user_id: "editor-1" });
   });
 
+  it("protects media embedded in managed page sections", async () => {
+    const referenced = await uploadMedia(env(), file(jpegBytes, "page-hero.jpg", "image/jpeg"), { altText: "Page hero magnolia", createdByUserId: "editor-1" });
+    await database.prepare(`INSERT INTO pages (id, page_key, locale, sections_json, status, created_at, updated_at)
+      VALUES ('page-r2', 'r2-page', 'en', ?, 'draft', ?, ?)`)
+      .bind(JSON.stringify([{ type: "hero", title: "R2 page", image: { src: `/media/${referenced.objectKey}`, alt: "Page hero magnolia" } }]), "2026-09-19T08:00:00.000Z", "2026-09-19T08:00:00.000Z").run();
+
+    const blocked = await deleteRoute(routeContext(deleteRequest(referenced.id), "admin", {}, referenced.id) as never);
+    expect(blocked.status).toBe(409);
+    await expect(blocked.json()).resolves.toMatchObject({ error: { code: "media_referenced" } });
+    expect(await bucket.head(referenced.objectKey)).not.toBeNull();
+  });
+
   it("restores the object when a content reference appears during deletion", async () => {
     const uploaded = await uploadMedia(env(), file(jpegBytes, "racing-reference.jpg", "image/jpeg"), { altText: "Racing reference", createdByUserId: "editor-1" });
     const racingBucket = new Proxy(bucket, {

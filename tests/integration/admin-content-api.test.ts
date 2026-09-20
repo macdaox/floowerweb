@@ -298,6 +298,18 @@ describe("admin content API", () => {
     await expect(verifyPreviewToken(`${payload}.${tamperedSignature}`, "test-secret", "page", "page-1", issuedAt)).resolves.toBeNull();
   });
 
+  it("accepts only active R2 media selected into page sections", async () => {
+    const mediaId = "00000000-0000-4000-8000-000000000711";
+    const objectKey = `${mediaId}.jpg`;
+    const data = { pageKey: "r2-page", sections: [{ type: "hero", title: "R2 page", image: { src: `/media/${objectKey}`, alt: "White magnolia branch" } }] };
+
+    expect((await create(pageRoute, "editor", data)).status).toBe(422);
+    await insertMedia(mediaId, "White magnolia branch", false);
+    const created = await create(pageRoute, "editor", data);
+    expect(created.status).toBe(201);
+    await expect(created.json()).resolves.toMatchObject({ data: { sections: data.sections } });
+  });
+
   function locals(role: Role) {
     return { runtime: { env: { DB: database, SESSION_SECRET: "test-secret" } }, auth: { id: `${role}-1`, email: `${role}@everstem.test`, displayName: role, role } };
   }

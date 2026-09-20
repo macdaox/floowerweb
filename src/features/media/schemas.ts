@@ -67,6 +67,16 @@ export function publicMediaUrl(row: Record<string, unknown>): string | undefined
   return `/assets/${encodeURIComponent(filename)}`;
 }
 
+export function mediaObjectKeyFromPublicUrl(value: string): string | undefined {
+  if (!value.startsWith("/media/") || value.includes("?") || value.includes("#")) return undefined;
+  try {
+    const key = decodeURIComponent(value.slice("/media/".length));
+    return immutableMediaKeyPattern.test(key) ? key : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function parseGalleryPayload(value: unknown): { entity: GalleryEntity; contentId: string; items: GalleryInputItem[] } {
   const payload = parse(z.object({
     version: z.literal(1),
