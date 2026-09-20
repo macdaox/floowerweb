@@ -3,22 +3,19 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { renderSeedSql } from "./seed";
+import { d1TargetArguments } from "./d1-target";
 
 const args = process.argv.slice(2);
-const remote = args.includes("--remote");
+const targetArguments = d1TargetArguments(args);
 const configPath = optionValue("--config");
 const database = optionValue("--database") ?? "DB";
-
-if (remote && args.includes("--local")) {
-  throw new Error("Choose only one database target: --local or --remote.");
-}
 
 const directory = await mkdtemp(join(tmpdir(), "everstem-seed-"));
 const seedFile = join(directory, "everstem-seed.sql");
 
 try {
   await writeFile(seedFile, renderSeedSql());
-  const command = ["wrangler", "d1", "execute", database, remote ? "--remote" : "--local"];
+  const command = ["wrangler", "d1", "execute", database, ...targetArguments];
   if (configPath) command.push("--config", configPath);
   command.push("--file", seedFile);
 

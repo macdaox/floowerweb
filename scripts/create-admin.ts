@@ -4,11 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assertStrongAdminPassword } from "../src/features/auth/schemas";
 import { hashPassword } from "../src/features/auth/password";
+import { d1TargetArguments } from "./d1-target";
 
 const args = process.argv.slice(2);
 const requestedEmail = optionValue("--email")?.trim().toLowerCase();
 const configPath = optionValue("--config");
 const database = optionValue("--database") ?? "DB";
+const targetArguments = d1TargetArguments(args);
 const password = process.env.EVERSTEM_ADMIN_PASSWORD;
 
 if (!requestedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(requestedEmail) || requestedEmail.length > 254) {
@@ -28,7 +30,7 @@ try {
   await writeFile(sqlFile, `INSERT INTO users (id, email, username, display_name, password_hash, role, is_active, created_at, updated_at)
 SELECT ${literal(id)}, ${literal(email)}, ${literal(username)}, 'Administrator', ${literal(await hashPassword(password))}, 'admin', 1, ${literal(now)}, ${literal(now)}
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = ${literal(email)} OR role = 'admin');`);
-  const command = ["wrangler", "d1", "execute", database, "--local"];
+  const command = ["wrangler", "d1", "execute", database, ...targetArguments];
   if (configPath) command.push("--config", configPath);
   command.push("--file", sqlFile);
   const result = spawnSync("npx", command, { encoding: "utf8" });
@@ -68,7 +70,7 @@ function createdAdministrator(): boolean {
 }
 
 function queryD1(sql: string): Array<{ email?: string; id?: string }> {
-  const command = ["wrangler", "d1", "execute", database, "--local"];
+  const command = ["wrangler", "d1", "execute", database, ...targetArguments];
   if (configPath) command.push("--config", configPath);
   command.push("--command", sql, "--json");
   const result = spawnSync("npx", command, { encoding: "utf8" });

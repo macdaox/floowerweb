@@ -1,0 +1,9 @@
+# Copy this file to .dev.vars. Never commit the real file.
+SESSION_SECRET=replace-with-at-least-32-random-bytes
+PUBLIC_SITE_URL=http://127.0.0.1:4321
+# Optional. Only set when Cloudflare Image Resizing is enabled for this origin.
+# PUBLIC_IMAGE_RESIZING_ORIGIN=https://media.example.com
+
+# CLI/test-only values; Wrangler does not expose them to the deployed Worker.
+EVERSTEM_ADMIN_PASSWORD=replace-with-a-long-unique-admin-passphrase
+E2E_ADMIN_PASSWORD=replace-with-a-long-local-test-passphrase
