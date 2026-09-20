@@ -64,6 +64,8 @@
 .detail-copy > p:not(.eyebrow), .trade-copy > p:not(.eyebrow) { max-width: 40rem; margin: 2rem 0; font-family: var(--font-display); font-size: 1.35rem; line-height: 1.4; }
 .detail-copy ul { margin: 0; padding: 0; border-top: var(--border-hairline); list-style: none; }
 .detail-copy li { display: grid; grid-template-columns: 3rem 1fr; padding: 1.2rem 0; border-bottom: var(--border-hairline); font-size: .72rem; letter-spacing: .13em; text-transform: uppercase; }.detail-copy li span { opacity: .55; }
+.detail-reversed .detail-visual { order: 2; }
+@media (max-width: 639px) { .detail-reversed .detail-visual { order: 0; } }
 
 .journal { background: var(--color-stone); }.journal .section-heading { grid-template-columns: 1fr auto; }.journal .section-heading .text-link { align-self: end; margin-bottom: .5rem; }
 .journal-grid { display: grid; grid-template-columns: 1.1fr 1fr 1fr; align-items: start; gap: var(--grid-gap); }.story img { aspect-ratio: 4/5; margin-bottom: 1.4rem; }.story-featured img { aspect-ratio: 3/4; }.story .meta { margin-bottom: .6rem; opacity: .65; }.story h3 { max-width: 28rem; margin-bottom: 0; font-size: clamp(1.7rem, 2.4vw, 3rem); line-height: 1; }

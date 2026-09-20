@@ -54,3 +54,16 @@ test("footer distinguishes the newsletter group from its email field", async ({ 
   await expect(page.getByRole("form", { name: /notes from everstem/i })).toBeVisible();
   await expect(page.getByLabel("Email address")).toHaveAttribute("type", "email");
 });
+
+test("home detail section preserves the original material treatment list", async ({ page }) => {
+  await page.goto("/");
+
+  const details = page.locator("#detail .detail-copy li");
+  await expect(details).toHaveCount(4);
+  await expect(details).toHaveText([
+    "TextileLayered petals for natural depth",
+    "MoldedLeaf veins shaped from botanical references",
+    "WiredFlexible stems for controlled styling",
+    "FinishedSubtle tonal variation by hand",
+  ]);
+});

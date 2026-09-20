@@ -26,7 +26,7 @@ export async function loadHomeContent(binding?: D1Database): Promise<HomeContent
     safely(() => binding.prepare(`SELECT c.name, c.slug, c.description, m.object_key, m.original_filename, m.width, m.height, m.alt_text FROM categories c LEFT JOIN media m ON m.id = c.cover_media_id WHERE c.locale = 'en' AND c.status = 'published' ORDER BY c.sort_order, c.name`).all<Row>()),
     safely(() => binding.prepare(`SELECT p.name, p.slug, p.summary, c.slug AS category_slug FROM products p JOIN categories c ON c.id = p.category_id WHERE p.locale = 'en' AND p.status = 'published' ORDER BY c.sort_order, p.name`).all<Row>()),
     safely(() => binding.prepare(`SELECT s.title, s.slug, s.category, s.summary, m.object_key, m.original_filename, m.width, m.height, m.alt_text FROM spaces s LEFT JOIN media m ON m.id = s.cover_media_id WHERE s.locale = 'en' AND s.status = 'published' ORDER BY s.updated_at DESC LIMIT 1`).first<Row>()),
-    safely(() => binding.prepare(`SELECT a.title, a.slug, m.object_key, m.original_filename, m.width, m.height, m.alt_text FROM articles a LEFT JOIN media m ON m.id = a.cover_media_id WHERE a.locale = 'en' AND a.status = 'published' ORDER BY a.published_at DESC LIMIT 3`).all<Row>()),
+    safely(() => binding.prepare(`SELECT a.title, a.slug, a.author, a.summary, a.body, m.object_key, m.original_filename, m.width, m.height, m.alt_text FROM articles a LEFT JOIN media m ON m.id = a.cover_media_id WHERE a.locale = 'en' AND a.status = 'published' ORDER BY a.published_at DESC LIMIT 3`).all<Row>()),
   ]);
   const page = pageRead.failed ? undefined : pageRead.value;
   const parsedSections = pageRead.failed ? fallbackHomeContent.sectionsWithHero : parseStoredPageBlocks(page?.sections_json) ?? [];
@@ -54,7 +54,10 @@ function parseHero(sections: PageBlock[]): ParsedHero | undefined {
 function categoryFrom(row: Row): HomeCategory { return { name: text(row.name), slug: text(row.slug), description: text(row.description), image: rowMedia(row) }; }
 function productFrom(row: Row): HomeProduct { return { name: text(row.name), slug: text(row.slug), summary: text(row.summary), categorySlug: text(row.category_slug) }; }
 function spaceFrom(row: Row | null): HomeSpace | undefined { if (!row) return undefined; const space = { title: text(row.title), slug: text(row.slug), category: text(row.category), summary: text(row.summary), image: rowMedia(row) }; return space.title && space.slug ? space : undefined; }
-function articleFrom(row: Row, index: number): HomeArticle { return { title: text(row.title), slug: text(row.slug), category: ["Material development", "Display design", "Commercial space"][index] ?? "Journal", readTime: ["4 min", "7 min", "5 min"][index] ?? "5 min", image: rowMedia(row) }; }
+function articleFrom(row: Row): HomeArticle {
+  const wordCount = `${text(row.summary)} ${text(row.body)}`.trim().split(/\s+/u).filter(Boolean).length;
+  return { title: text(row.title), slug: text(row.slug), category: text(row.author) || "EVERSTEM Journal", readTime: `${Math.max(1, Math.ceil(wordCount / 200))} min`, image: rowMedia(row) };
+}
 function rowMedia(row: Row | null): HomeMedia | undefined {
   const src = row ? publicMediaUrl(row) : undefined;
   if (!src) return undefined;

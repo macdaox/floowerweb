@@ -85,4 +85,24 @@ describe("loadHomeContent", () => {
     expect(content.hero?.image).toBeUndefined();
     expect(content.categories).toHaveLength(4);
   });
+
+  it("keeps category and article metadata attached to their own records after reordering", async () => {
+    const content = await loadHomeContent(d1({
+      ...partialRows,
+      categories: [
+        { name: "Trees first", slug: "trees-first", description: "Floor-standing forms", original_filename: "tree.png", alt_text: "Tree" },
+        { name: "Flowers second", slug: "flowers-second", description: "Layered flower stems", original_filename: "flower.png", alt_text: "Flower" },
+      ],
+      articles: [
+        { title: "Longer article", slug: "longer-article", author: "Studio notes", body: Array.from({ length: 450 }, () => "word").join(" "), original_filename: "long.png", alt_text: "Long" },
+        { title: "Short article", slug: "short-article", author: "Material journal", body: "A concise note.", original_filename: "short.png", alt_text: "Short" },
+      ],
+    }));
+
+    expect(content.categories.map(({ description }) => description)).toEqual(["Floor-standing forms", "Layered flower stems"]);
+    expect(content.articles.map(({ category, readTime }) => ({ category, readTime }))).toEqual([
+      { category: "Studio notes", readTime: "3 min" },
+      { category: "Material journal", readTime: "1 min" },
+    ]);
+  });
 });
