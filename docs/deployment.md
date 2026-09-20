@@ -1,12 +1,12 @@
-# Cloudflare deployment runbook
+# Cloudflare 部署说明
 
-This project deploys to Cloudflare Pages with D1 (`DB`) and R2 (`MEDIA`). Production and preview must use separate databases and buckets. GitHub `main` is the production branch; pull requests create previews.
+本项目部署到 Cloudflare Pages，并使用 D1（`DB`）和 R2（`MEDIA`）。生产环境和预览环境必须使用独立的数据库和存储桶。GitHub 的 `main` 分支用于生产部署，Pull Request 用于创建预览部署。
 
-Before release, run `npm run test:smoke`. It creates the production build, prepares the local D1 seed, starts `wrangler pages dev ./dist` with local D1/R2 bindings, and checks critical public and admin-login routes against that built output.
+每次发布前请运行 `npm run test:smoke`。该命令会生成生产构建、准备本地 D1 种子数据、使用本地 D1/R2 绑定启动 `wrangler pages dev ./dist`，并检查构建结果中的关键公开页面和后台登录页面。
 
-## 1. Prepare the repository
+## 1. 准备代码仓库
 
-Use Node.js 22+ and npm 10+.
+请使用 Node.js 22 或更高版本，以及 npm 10 或更高版本。
 
 ```bash
 npm clean-install
@@ -17,11 +17,11 @@ npm run admin:create -- --email you@example.com
 npm run dev
 ```
 
-`.dev.vars` is ignored by Git. Generate `SESSION_SECRET` with a cryptographically secure password manager or `openssl rand -base64 48`; never reuse an admin password. Export `EVERSTEM_ADMIN_PASSWORD` from your password manager immediately before the administrator command, then unset it.
+`.dev.vars` 已被 Git 忽略。请使用安全的密码管理器或 `openssl rand -base64 48` 生成 `SESSION_SECRET`，不要与后台管理员密码重复。运行创建管理员的命令前，从密码管理器中导出 `EVERSTEM_ADMIN_PASSWORD`，命令执行完成后立即清除该环境变量。
 
-## 2. Create Cloudflare resources
+## 2. 创建 Cloudflare 资源
 
-Authenticate Wrangler, then create distinct preview and production resources:
+先登录 Wrangler，然后分别创建预览环境和生产环境的资源：
 
 ```bash
 npx wrangler login
@@ -31,9 +31,9 @@ npx wrangler r2 bucket create everstem-media-preview
 npx wrangler r2 bucket create everstem-media-production
 ```
 
-Copy the two returned D1 UUIDs into the matching `database_id` placeholders in `wrangler.toml`. Do not commit account tokens or secrets. The bucket names are already declared there; change them only if you created different names.
+将返回的两个 D1 UUID 填入 `wrangler.toml` 中对应的 `database_id` 占位符。不要提交账户令牌或密钥。存储桶名称已在该文件中声明；只有在实际创建了不同名称的存储桶时才需要修改。
 
-Apply migrations and seed each remote database deliberately:
+请分别对每个远程数据库执行迁移并导入种子数据：
 
 ```bash
 npm run db:migrate:remote
@@ -42,45 +42,45 @@ npm run db:migrate:remote -- --env production
 npm run db:seed:remote -- --env production
 ```
 
-Create the first administrator in each environment. The command hashes the password locally, never prints it, and refuses to create a second initial administrator:
+在每个环境中创建第一个管理员。该命令会在本地对密码进行哈希处理，不会输出密码，并且会拒绝重复创建第二个初始管理员：
 
 ```bash
 npm run admin:create -- --remote --email admin@example.com
 npm run admin:create -- --remote --email admin@example.com --env production
 ```
 
-Always verify the Wrangler target database before entering a production password.
+输入生产环境管理员密码前，务必先确认 Wrangler 当前指向的目标数据库。
 
-## 3. Connect GitHub to Pages
+## 3. 将 GitHub 连接到 Pages
 
-In Cloudflare Dashboard, create a Pages project from this GitHub repository:
+在 Cloudflare 控制台中，从该 GitHub 仓库创建 Pages 项目，配置如下：
 
-- Production branch: `main`
-- Build command: `npm run build`
-- Build output directory: `dist`
-- Node version: `22`
-- Preview deployments: enabled for pull requests
+- 生产分支：`main`
+- 构建命令：`npm run build`
+- 构建输出目录：`dist`
+- Node 版本：`22`
+- 预览部署：为 Pull Request 启用
 
-For Preview bindings, attach `DB` to `everstem-preview` and `MEDIA` to `everstem-media-preview`. For Production bindings, attach `DB` to `everstem-production` and `MEDIA` to `everstem-media-production`.
+在预览环境的绑定中，将 `DB` 关联到 `everstem-preview`，将 `MEDIA` 关联到 `everstem-media-preview`。在生产环境的绑定中，将 `DB` 关联到 `everstem-production`，将 `MEDIA` 关联到 `everstem-media-production`。
 
-Set these variables separately in both Pages environments:
+在 Pages 的两个环境中分别设置以下变量：
 
-- Secret `SESSION_SECRET`: a different random value per environment, at least 32 random bytes.
-- Variable `PUBLIC_SITE_URL`: the canonical HTTPS origin for that environment, with no path.
-- Variable `MEDIA_MAX_BYTES`: `10485760` unless you intentionally change the upload policy.
-- Optional variable `PUBLIC_IMAGE_RESIZING_ORIGIN`: only an HTTPS origin where Cloudflare Image Resizing is enabled and `/media/*` resolves to this application.
+- 密钥 `SESSION_SECRET`：每个环境使用不同的随机值，至少包含 32 字节随机数据。
+- 变量 `PUBLIC_SITE_URL`：该环境的规范 HTTPS 站点根地址，不得包含路径。
+- 变量 `MEDIA_MAX_BYTES`：如果不打算修改上传限制，设为 `10485760`。
+- 可选变量 `PUBLIC_IMAGE_RESIZING_ORIGIN`：仅在某个 HTTPS 源站已启用 Cloudflare Image Resizing，并且该源站的 `/media/*` 能够访问本应用时设置。
 
-`PUBLIC_SITE_URL` is mandatory outside local Astro development. Canonical links, Open Graph URLs, JSON-LD, `robots.txt`, and the sitemap use only this configured value and never trust the request Host header. Missing or invalid production configuration fails closed.
+除本地 Astro 开发环境外，`PUBLIC_SITE_URL` 是必填项。规范链接、Open Graph URL、JSON-LD、`robots.txt` 和站点地图只使用该配置值，绝不信任请求中的 Host 请求头。如果生产环境中缺少该变量或配置无效，系统会为了安全直接拒绝运行相关功能。
 
-## 4. Domain and media
+## 4. 域名与图片
 
-Add the production custom domain in Pages, update DNS as Cloudflare instructs, then set `PUBLIC_SITE_URL` to that exact `https://` origin and redeploy. Uploaded objects remain private in R2 and are served by the application through `/media/*`; do not expose the bucket publicly. Referenced media cannot be physically deleted from the admin console.
+在 Pages 中添加生产环境自定义域名，按照 Cloudflare 的指引更新 DNS，然后将 `PUBLIC_SITE_URL` 设为完全一致的 `https://` 站点根地址并重新部署。上传的对象应在 R2 中保持私有，并由应用通过 `/media/*` 路径对外提供；不要将存储桶设置为公开。在后台管理界面中，已被内容引用的图片不能删除。
 
-Image Resizing is optional. Without it, dynamic R2 images safely use their original URL. Bundled design imagery already has checked-in responsive variants under `public/assets/responsive/`.
+Image Resizing 是可选功能。如果不启用，R2 中的动态图片会安全地使用原始 URL。项目内置的设计图片已在 `public/assets/responsive/` 目录中提供了对应的响应式版本。
 
-## 5. Release verification
+## 5. 发布验证
 
-Before merging or deploying:
+合并或部署前运行：
 
 ```bash
 npm clean-install
@@ -91,19 +91,19 @@ npm run build
 npm run test:e2e
 ```
 
-After deployment, verify `/`, `/collections`, `/about`, `/contact`, `/wholesale`, `/admin/login`, and `/health`; submit one test inquiry and confirm it appears in the Chinese admin without sending email. Confirm the public sitemap contains no drafts, admin URLs, notes, hashes, session digests, or secrets.
+部署完成后，检查 `/`、`/collections`、`/about`、`/contact`、`/wholesale`、`/admin/login` 和 `/health`。提交一条测试询盘，确认它能在中文后台中显示，并且系统不会自动发送邮件。同时确认公开站点地图中不包含草稿、后台 URL、内部备注、哈希值、会话摘要或任何密钥。
 
-## 6. Backups, rollback, and rotation
+## 6. 备份、回滚与密钥轮换
 
-Before every migration or significant content release, export each D1 database:
+每次数据库迁移或重大内容发布前，导出每个 D1 数据库：
 
 ```bash
 npx wrangler d1 export DB --remote --output backup-preview.sql
 npx wrangler d1 export DB --remote --env production --output backup-production.sql
 ```
 
-Store exports in encrypted storage outside Git. R2 object versioning or scheduled copies should be configured in Cloudflare according to your retention policy.
+将导出文件保存在 Git 仓库之外的加密存储中。请根据你的数据保留策略，在 Cloudflare 中配置 R2 对象版本控制或定时复制。
 
-For application rollback, use Pages Deployments to roll back to the last known-good deployment. Do not reverse a D1 migration by deleting tables or files. Restore into a new D1 database from the verified export, update the binding, test, and then switch traffic.
+如需回滚应用，请在 Pages Deployments 中回滚到上一个已验证的正常版本。不要通过删除数据表或迁移文件来反向撤销 D1 迁移。应当使用已验证的导出备份恢复到一个新的 D1 数据库，更新绑定并完成测试后，再切换流量。
 
-Rotate `SESSION_SECRET` in the affected Pages environment and redeploy; all existing admin sessions become invalid. Rotate an admin password by logging in as another administrator and updating the account. Rotate Cloudflare API tokens in the dashboard and update CI secrets; never place them in `.dev.vars`, source files, logs, or GitHub Actions output.
+在受影响的 Pages 环境中轮换 `SESSION_SECRET` 并重新部署，所有现有的后台会话都会失效。如需更换管理员密码，请使用另一个管理员账号登录后更新该账户。在 Cloudflare 控制台中轮换 API 令牌，同时更新 CI 密钥；不要将它们写入 `.dev.vars`、源码、日志或 GitHub Actions 输出。
