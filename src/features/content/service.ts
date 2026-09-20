@@ -21,14 +21,14 @@ export async function getPublishedPage(db: D1Database, key: string, locale: stri
   if (!row) return null;
   const sections = parseStoredPageBlocks(row.sections_json);
   if (!sections) return null;
-  return { key: text(row.page_key), sections, seo: { title: text(row.seo_title) || `${titleFor(key)} | EVERSTEM`, description: text(row.seo_description) || descriptionFor(key) } };
+  return { key: text(row.page_key), sections, seo: { title: text(row.seo_title), description: text(row.seo_description) } };
 }
 
 export async function getPreviewPageById(db: D1Database, id: string, key: string, locale: string): Promise<ContentPage | null> {
   const row = await findPreviewPageRow(db, id, key, locale);
   if (!row) return null;
   const sections = parseStoredPageBlocks(row.sections_json);
-  return sections ? { key: text(row.page_key), sections, seo: { title: text(row.seo_title) || `${titleFor(key)} | EVERSTEM`, description: text(row.seo_description) || descriptionFor(key) } } : null;
+  return sections ? { key: text(row.page_key), sections, seo: { title: text(row.seo_title), description: text(row.seo_description) } } : null;
 }
 
 export async function getPreviewPage(db: D1Database, id: string, locale: string): Promise<ContentPage | null> {
@@ -36,7 +36,7 @@ export async function getPreviewPage(db: D1Database, id: string, locale: string)
   if (!row) return null;
   const key = text(row.page_key);
   const sections = parseStoredPageBlocks(row.sections_json);
-  return sections ? { key, sections, seo: { title: text(row.seo_title) || `${titleFor(key)} | EVERSTEM`, description: text(row.seo_description) || descriptionFor(key) } } : null;
+  return sections ? { key, sections, seo: { title: text(row.seo_title), description: text(row.seo_description) } } : null;
 }
 
 export async function listPublishedSpaces(db: D1Database, locale: string): Promise<SpaceCard[]> {
@@ -167,5 +167,3 @@ function isSpaceCard(value: SpaceCard): boolean { return Boolean(value.title && 
 function isArticleCard(value: ArticleCard): boolean { return Boolean(value.title && value.slug); }
 function uniqueImages(images: Array<ContentImage | undefined>): ContentImage[] { return images.filter((image): image is ContentImage => Boolean(image)).filter((image, index, all) => all.findIndex((candidate) => candidate.src === image.src) === index); }
 function optionalText(value: unknown): string | undefined { const result = text(value); return result || undefined; }
-function titleFor(key: string): string { return key.replace(/(^|-)\w/g, (part) => part.toUpperCase()).replaceAll("-", " "); }
-function descriptionFor(key: string): string { return `${titleFor(key)} from EVERSTEM.`; }

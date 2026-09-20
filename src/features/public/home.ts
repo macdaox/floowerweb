@@ -35,7 +35,7 @@ export async function loadHomeContent(binding?: D1Database): Promise<HomeContent
     : parseHero(parsedSections);
   const heroImage = pageRead.failed ? fallbackHomeContent.hero?.image : parsedHero?.image;
   return {
-    seo: pageRead.failed ? fallbackHomeContent.seo : { title: text(page?.seo_title) || fallbackHomeContent.seo.title, description: text(page?.seo_description) || fallbackHomeContent.seo.description },
+    seo: pageRead.failed ? fallbackHomeContent.seo : { title: text(page?.seo_title), description: text(page?.seo_description) },
     hero: parsedHero && { eyebrow: parsedHero.eyebrow, title: parsedHero.title, image: heroImage },
     sections: parsedSections.filter((section) => section.type !== "hero"),
     categories: categoriesRead.failed ? fallbackHomeContent.categories : categoriesRead.value.results.map(categoryFrom).filter(isCategory),

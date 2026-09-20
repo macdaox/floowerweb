@@ -15,7 +15,7 @@ describe("administrator initialization", () => {
     directory = await mkdtemp(join(tmpdir(), "everstem-admin-cli-"));
     configPath = join(directory, "wrangler.toml");
     await writeFile(configPath, `name = "everstem-admin-cli-test"
-compatibility_date = "2026-09-13"
+compatibility_date = "2026-07-30"
 
 [[d1_databases]]
 binding = "DB"

@@ -1,5 +1,6 @@
 name = "everstem"
-compatibility_date = "2026-09-13"
+compatibility_date = "2026-07-30"
+compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "./dist"
 
 [vars]

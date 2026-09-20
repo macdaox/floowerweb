@@ -4,7 +4,7 @@ EVERSTEM is an English public wholesale botanical website with a Chinese adminis
 
 ## Local start
 
-Requirements: Node.js 20 or newer, npm 10 or newer, and a Cloudflare account only when you are ready to create remote resources.
+Requirements: Node.js 22 or newer, npm 10 or newer, and a Cloudflare account only when you are ready to create remote resources.
 
 ```bash
 npm clean-install

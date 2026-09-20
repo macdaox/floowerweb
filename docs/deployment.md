@@ -6,7 +6,7 @@ Before release, run `npm run test:smoke`. It creates the production build, prepa
 
 ## 1. Prepare the repository
 
-Use Node.js 20+ and npm 10+.
+Use Node.js 22+ and npm 10+.
 
 ```bash
 npm clean-install
@@ -58,7 +58,7 @@ In Cloudflare Dashboard, create a Pages project from this GitHub repository:
 - Production branch: `main`
 - Build command: `npm run build`
 - Build output directory: `dist`
-- Node version: `20`
+- Node version: `22`
 - Preview deployments: enabled for pull requests
 
 For Preview bindings, attach `DB` to `everstem-preview` and `MEDIA` to `everstem-media-preview`. For Production bindings, attach `DB` to `everstem-production` and `MEDIA` to `everstem-media-production`.

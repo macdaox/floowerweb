@@ -21,7 +21,7 @@ describe("initial D1 schema", () => {
     await writeFile(
       configPath,
       `name = "everstem-schema-test"
-compatibility_date = "2026-09-13"
+compatibility_date = "2026-07-30"
 
 [[d1_databases]]
 binding = "DB"
@@ -46,7 +46,7 @@ migrations_dir = "${resolve(workspace, "migrations")}"\n`,
 
   it("applies the forward-only normalization migration after the initial schema", () => {
     const migrations = query("SELECT name FROM d1_migrations ORDER BY id").map((row) => row.name);
-    expect(migrations).toEqual(["0001_initial.sql", "0002_schema_normalization.sql", "0003_rate_limits.sql", "0004_submission_idempotency.sql", "0005_submission_idempotency_ledger.sql", "0006_active_media_references.sql"]);
+    expect(migrations).toEqual(["0001_initial.sql", "0002_schema_normalization.sql", "0003_rate_limits.sql", "0004_submission_idempotency.sql", "0005_submission_idempotency_ledger.sql", "0006_active_media_references.sql", "0007_page_media_references.sql"]);
   });
 
   it("enforces the idempotency ledger's type-specific reference pairing", () => {
@@ -93,6 +93,18 @@ migrations_dir = "${resolve(workspace, "migrations")}"\n`,
       VALUES ('deleted-gallery-image', 'product-1', 'deleted-media', 'Deleted image', '${now}')`)).toThrow(/active media required/iu);
   });
 
+  it("atomically enforces active page media and blocks deletion while referenced", () => {
+    const now = "2026-09-13T00:00:00.000Z";
+    execute(`INSERT INTO media (id, object_key, original_filename, mime_type, byte_size, alt_text, is_deleted, created_at, updated_at)
+      VALUES ('page-media', '00000000-0000-4000-8000-000000000777.jpg', 'page.jpg', 'image/jpeg', 1, 'Page image', 0, '${now}', '${now}');
+      INSERT INTO pages (id, locale, page_key, sections_json, status, created_at, updated_at)
+      VALUES ('page-with-media', 'en', 'page-with-media', '[{"type":"imageText","title":"Image","body":"Body","image":{"src":"/media/00000000-0000-4000-8000-000000000777.jpg","alt":"Page image"}}]', 'draft', '${now}', '${now}')`);
+
+    expect(() => execute("UPDATE media SET is_deleted = 1 WHERE id = 'page-media'")).toThrow(/media is referenced/iu);
+    execute("UPDATE pages SET sections_json = '[]' WHERE id = 'page-with-media'; UPDATE media SET is_deleted = 1 WHERE id = 'page-media'");
+    expect(() => execute(`UPDATE pages SET sections_json = '[{"type":"imageText","title":"Image","body":"Body","image":{"src":"/media/00000000-0000-4000-8000-000000000777.jpg","alt":"Page image"}}]' WHERE id = 'page-with-media'`)).toThrow(/active media required/iu);
+  });
+
   it("normalizes inquiry interests and restricts JSON columns to bounded content", () => {
     const schema = query(`SELECT 'inquiries' AS object, group_concat(name) AS detail FROM pragma_table_info('inquiries')
       UNION ALL SELECT 'settings', group_concat(name) FROM pragma_table_info('settings')
@@ -117,7 +129,7 @@ migrations_dir = "${resolve(workspace, "migrations")}"\n`,
     const writeConfig = (migrationsDir: string) => writeFile(
       upgradeConfig,
       `name = "everstem-upgrade-test"
-compatibility_date = "2026-09-13"
+compatibility_date = "2026-07-30"
 
 [[d1_databases]]
 binding = "DB"
