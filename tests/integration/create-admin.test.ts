@@ -30,23 +30,27 @@ migrations_dir = "${resolve(workspace, "migrations")}"\n`);
   });
 
   it("creates exactly one active administrator without exposing the configured password", () => {
-    const output = runNpm(["run", "admin:create", "--", "--email", "admin@example.com", "--config", configPath, "--database", "DB"], {
+    const output = runNpm(["run", "admin:create", "--", "--config", configPath, "--database", "DB"], {
+      EVERSTEM_ADMIN_EMAIL: "admin@example.com",
       EVERSTEM_ADMIN_PASSWORD: password,
     });
     const users = query("SELECT email, password_hash, role, is_active FROM users");
 
     expect(output).not.toContain(password);
     expect(users).toEqual([{ email: "admin@example.com", password_hash: expect.not.stringContaining(password), role: "admin", is_active: 1 }]);
-    expect(() => runNpm(["run", "admin:create", "--", "--email", "admin@example.com", "--config", configPath, "--database", "DB"], {
+    expect(() => runNpm(["run", "admin:create", "--", "--config", configPath, "--database", "DB"], {
+      EVERSTEM_ADMIN_EMAIL: "admin@example.com",
       EVERSTEM_ADMIN_PASSWORD: password,
     })).toThrow(/administrator with that email already exists/i);
-    expect(() => runNpm(["run", "admin:create", "--", "--email", "another-admin@example.com", "--config", configPath, "--database", "DB"], {
+    expect(() => runNpm(["run", "admin:create", "--", "--config", configPath, "--database", "DB"], {
+      EVERSTEM_ADMIN_EMAIL: "another-admin@example.com",
       EVERSTEM_ADMIN_PASSWORD: password,
     })).toThrow(/administrator already exists/i);
   }, 30_000);
 
   it("refuses a passphrase with fewer than fifteen non-whitespace characters", () => {
-    expect(() => runNpm(["run", "admin:create", "--", "--email", "admin@example.com", "--config", configPath, "--database", "DB"], {
+    expect(() => runNpm(["run", "admin:create", "--", "--config", configPath, "--database", "DB"], {
+      EVERSTEM_ADMIN_EMAIL: "admin@example.com",
       EVERSTEM_ADMIN_PASSWORD: "a             b",
     })).toThrow(/at least 15 non-whitespace/i);
     expect(query("SELECT COUNT(*) AS count FROM users")).toEqual([{ count: 0 }]);

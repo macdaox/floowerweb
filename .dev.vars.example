@@ -5,5 +5,6 @@ PUBLIC_SITE_URL=http://127.0.0.1:4321
 # PUBLIC_IMAGE_RESIZING_ORIGIN=https://media.example.com
 
 # CLI/test-only values; Wrangler does not expose them to the deployed Worker.
+EVERSTEM_ADMIN_EMAIL=admin@example.com
 EVERSTEM_ADMIN_PASSWORD=replace-with-a-long-unique-admin-passphrase
 E2E_ADMIN_PASSWORD=replace-with-a-long-local-test-passphrase

@@ -13,11 +13,11 @@ npm clean-install
 cp .dev.vars.example .dev.vars
 npm run db:migrate:local
 npm run db:seed:local
-npm run admin:create -- --email you@example.com
+npm run admin:create
 npm run dev
 ```
 
-`.dev.vars` 已被 Git 忽略。请使用安全的密码管理器或 `openssl rand -base64 48` 生成 `SESSION_SECRET`，不要与后台管理员密码重复。运行创建管理员的命令前，从密码管理器中导出 `EVERSTEM_ADMIN_PASSWORD`，命令执行完成后立即清除该环境变量。
+`.dev.vars` 已被 Git 忽略。请使用安全的密码管理器或 `openssl rand -base64 48` 生成 `SESSION_SECRET`，不要与后台管理员密码重复。运行创建管理员的命令前，通过环境变量设置 `EVERSTEM_ADMIN_EMAIL` 和 `EVERSTEM_ADMIN_PASSWORD`，命令执行完成后立即清除这两个环境变量。
 
 ## 2. 创建 Cloudflare 资源
 
@@ -45,8 +45,8 @@ npm run db:seed:remote -- --env production
 在每个环境中创建第一个管理员。该命令会在本地对密码进行哈希处理，不会输出密码，并且会拒绝重复创建第二个初始管理员：
 
 ```bash
-npm run admin:create -- --remote --email admin@example.com
-npm run admin:create -- --remote --email admin@example.com --env production
+npm run admin:create -- --remote
+npm run admin:create -- --remote --env production
 ```
 
 输入生产环境管理员密码前，务必先确认 Wrangler 当前指向的目标数据库。

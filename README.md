@@ -11,7 +11,7 @@ npm clean-install
 cp .dev.vars.example .dev.vars
 npm run db:migrate:local
 npm run db:seed:local
-npm run admin:create -- --email you@example.com
+npm run admin:create
 npm run dev
 ```
 
@@ -30,4 +30,4 @@ npm run build
 The detailed Cloudflare Pages, D1, R2, GitHub, backup, rollback, and credential-rotation instructions are in [docs/deployment.md](docs/deployment.md).
 
 No production IDs or credentials are committed. Replace the clearly marked D1 placeholders in `wrangler.toml` and configure secrets in Cloudflare before deployment.
-Export `EVERSTEM_ADMIN_PASSWORD` only for the administrator-creation command and `E2E_ADMIN_PASSWORD` only for browser tests; use values from your password manager and clear them from the shell afterwards.
+Set `EVERSTEM_ADMIN_EMAIL` and `EVERSTEM_ADMIN_PASSWORD` only for the administrator-creation command, and `E2E_ADMIN_PASSWORD` only for browser tests. Use values from your password manager and clear them from the shell afterwards.

@@ -7,14 +7,14 @@ import { hashPassword } from "../src/features/auth/password";
 import { d1TargetArguments } from "./d1-target";
 
 const args = process.argv.slice(2);
-const requestedEmail = optionValue("--email")?.trim().toLowerCase();
+const requestedEmail = process.env.EVERSTEM_ADMIN_EMAIL?.trim().toLowerCase();
 const configPath = optionValue("--config");
 const database = optionValue("--database") ?? "DB";
 const targetArguments = d1TargetArguments(args);
 const password = process.env.EVERSTEM_ADMIN_PASSWORD;
 
 if (!requestedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(requestedEmail) || requestedEmail.length > 254) {
-  throw new Error("--email must be a valid email address.");
+  throw new Error("EVERSTEM_ADMIN_EMAIL must be a valid email address.");
 }
 const email = requestedEmail;
 if (!password) throw new Error("EVERSTEM_ADMIN_PASSWORD must be set.");
