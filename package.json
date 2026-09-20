@@ -13,7 +13,7 @@
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "db:seed:local": "tsx scripts/seed-runner.ts --local",
     "db:seed:remote": "tsx scripts/seed-runner.ts --remote",
-    "admin:create": "tsx scripts/create-admin.ts",
+    "admin:create": "tsx --env-file-if-exists=.dev.vars scripts/create-admin.ts",
     "typecheck": "astro check"
   },
   "devDependencies": {
