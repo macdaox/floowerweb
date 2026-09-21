@@ -1,6 +1,7 @@
 import { initializeGalleryEditor } from "./GalleryEditor";
 import { openMediaPicker, type MediaItem } from "./MediaPicker";
 import { mountRichTextEditor, type RichTextEditorController } from "./RichTextEditor";
+import { mountPageSectionsEditor, type PageSectionsEditorController } from "./PageSectionsEditor";
 
 export type ContentEntity = "products" | "categories" | "spaces" | "articles" | "pages";
 export type ContentRecord = Record<string, unknown> & { id?: string; updatedAt?: string; status?: string };
@@ -70,6 +71,8 @@ export function initializeContentEditor(root: HTMLElement, options?: EditorOptio
   let pendingUploads = 0;
   const richTextEditors: RichTextEditorController[] = [];
   const richTextMounts: Array<{ host: HTMLElement; control: HTMLInputElement; value: string }> = [];
+  const pageEditors: PageSectionsEditorController[] = [];
+  const pageMounts: Array<{ host: HTMLElement; control: HTMLInputElement; value: unknown }> = [];
 
   const heading = document.createElement("h2");
   heading.textContent = record.id ? "编辑内容" : "新建内容";
@@ -109,8 +112,12 @@ export function initializeContentEditor(root: HTMLElement, options?: EditorOptio
       group.appendChild(host);
       richTextMounts.push({ host, control: control as HTMLInputElement, value: control.value });
     }
+    if (field.kind === "pageSections") {
+      const host = document.createElement("div");
+      group.appendChild(host);
+      pageMounts.push({ host, control: control as HTMLInputElement, value: record[field.name] ?? [{ type: "hero", title: "" }] });
+    }
     if (field.kind === "media") addMediaPickerControls(group, control as HTMLInputElement);
-    if (field.kind === "pageSections") addPageMediaControls(group, control as HTMLTextAreaElement);
     group.appendChild(error);
     fieldset.appendChild(group);
     fieldErrors.set(field.name, error);
@@ -149,6 +156,21 @@ export function initializeContentEditor(root: HTMLElement, options?: EditorOptio
     mount.control.value = editor.getHtml();
     richTextEditors.push(editor);
   }
+  for (const mount of pageMounts) {
+    const editor = mountPageSectionsEditor(mount.host, {
+      value: mount.value,
+      onChange: (value) => {
+        mount.control.value = JSON.stringify(value);
+        mount.control.dispatchEvent(new Event("input", { bubbles: true }));
+      },
+      onUploadStateChange: (uploading) => {
+        pendingUploads = Math.max(0, pendingUploads + (uploading ? 1 : -1));
+        setBusy(submitting || pendingUploads > 0);
+      },
+    });
+    mount.control.value = JSON.stringify(editor.getValue());
+    pageEditors.push(editor);
+  }
   syncActions();
   syncGallery();
   const categoryControl = form.elements.namedItem("categoryId");
@@ -173,6 +195,7 @@ export function initializeContentEditor(root: HTMLElement, options?: EditorOptio
       disposed = true;
       dirty = false;
       for (const editor of richTextEditors) editor.destroy();
+      for (const editor of pageEditors) editor.destroy();
       window.removeEventListener("beforeunload", unload);
       activeEditors.delete(root);
       delete root.dataset.initialized;
@@ -313,7 +336,8 @@ function readForm(form: HTMLFormElement, entity: ContentEntity): Record<string, 
 
 function createControl(field: Field): HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement {
   if (field.kind === "richText") { const control = document.createElement("input"); control.type = "hidden"; return control; }
-  if (field.kind === "textarea" || field.kind === "pageSections") { const control = document.createElement("textarea"); control.rows = field.rows ?? 4; return control; }
+  if (field.kind === "pageSections") { const control = document.createElement("input"); control.type = "hidden"; return control; }
+  if (field.kind === "textarea") { const control = document.createElement("textarea"); control.rows = field.rows ?? 4; return control; }
   if (field.kind === "select") { const control = document.createElement("select"); const option = document.createElement("option"); option.value = ""; option.textContent = "选择分类"; control.appendChild(option); return control; }
   const control = document.createElement("input");
   if (field.kind === "media") control.readOnly = true;
@@ -337,19 +361,6 @@ function addMediaPickerControls(group: HTMLElement, control: HTMLInputElement): 
   });
   group.appendChild(choose);
   group.appendChild(clear);
-}
-
-function addPageMediaControls(group: HTMLElement, control: HTMLTextAreaElement): void {
-  const choose = button("从媒体库添加图片区块", "admin-secondary-button");
-  choose.addEventListener("click", async () => {
-    let sections: unknown;
-    try { sections = JSON.parse(control.value || "[]"); } catch { sections = []; }
-    const selected = await openMediaPicker();
-    if (!selected) return;
-    control.value = JSON.stringify(appendPageMediaBlock(sections, selected), null, 2);
-    control.dispatchEvent(new Event("input", { bubbles: true }));
-  });
-  group.appendChild(choose);
 }
 
 export function appendPageMediaBlock(sections: unknown, media: MediaItem): unknown[] {

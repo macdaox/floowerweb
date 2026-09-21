@@ -18,7 +18,9 @@ const leadingImageIndex = prioritizeLeadingImage
     </section>;
     case "richText": return <section class="content-rich-text section">
       {section.heading && <h2>{section.heading}</h2>}
-      <div>{section.document.content.map((paragraph) => <p>{paragraph.content?.map((node) => node.text).join("")}</p>)}</div>
+      {section.html
+        ? <div set:html={section.html} />
+        : <div>{section.document?.content.map((paragraph) => <p>{paragraph.content?.map((node) => node.text).join("")}</p>)}</div>}
     </section>;
     case "imageText": return <section class:list={["content-image-text", "section", reveal && "detail", section.reversed && "content-image-text-reversed"]}>
       <figure class:list={[reveal && "detail-visual"]}><ResponsiveImage image={section.image} fallbackWidth={1400} fallbackHeight={1200} widths={[480, 800, 1400]} sizes="(max-width: 800px) 100vw, 50vw" loading={index === leadingImageIndex ? "eager" : "lazy"} fetchpriority={index === leadingImageIndex ? "high" : undefined} /></figure>

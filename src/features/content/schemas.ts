@@ -1,4 +1,5 @@
 import { isMeaningfulEnglishAltText, mediaObjectKeyFromPublicUrl, publicMediaUrl } from "../media/schemas";
+import { normalizeRichText, richTextMediaObjectKeys } from "../rich-text/schema";
 
 export interface ContentImage {
   src: string;
@@ -14,7 +15,7 @@ export interface RichTextDocument {
 
 export type PageBlock =
   | { type: "hero"; eyebrow?: string; title: string; body?: string; image?: ContentImage }
-  | { type: "richText"; heading?: string; document: RichTextDocument }
+  | { type: "richText"; heading?: string; document?: RichTextDocument; html?: string }
   | { type: "imageText"; eyebrow?: string; title: string; body: string; image: ContentImage; reversed?: boolean }
   | { type: "capabilities"; eyebrow?: string; title: string; items: string[] }
   | { type: "cta"; eyebrow?: string; title: string; body?: string; label: string; href: string }
@@ -80,6 +81,9 @@ export function serializePageBlocks(value: unknown): string {
 export function pageMediaObjectKeys(value: unknown): string[] {
   const keys = new Set<string>();
   for (const block of parsePageBlocks(value)) {
+    if (block.type === "richText" && block.html) {
+      for (const key of richTextMediaObjectKeys(block.html)) keys.add(key);
+    }
     const image = block.type === "hero" || block.type === "imageText" ? block.image : undefined;
     if (!image) continue;
     const key = mediaObjectKeyFromPublicUrl(image.src);
@@ -104,7 +108,10 @@ function parsePageBlock(value: unknown): PageBlock {
   if (!isRecord(value) || typeof value.type !== "string") throw new Error("Invalid page block");
   switch (value.type) {
     case "hero": return { type: "hero", title: requiredText(value.title, "hero title"), eyebrow: optionalText(value.eyebrow), body: optionalText(value.body), image: optionalImage(value.image) };
-    case "richText": return { type: "richText", heading: optionalText(value.heading), document: parseRichText(value.document) };
+    case "richText": {
+      if (typeof value.html === "string") return { type: "richText", heading: optionalText(value.heading), html: normalizeRichText(value.html) };
+      return { type: "richText", heading: optionalText(value.heading), document: parseRichText(value.document) };
+    }
     case "imageText": return { type: "imageText", eyebrow: optionalText(value.eyebrow), title: requiredText(value.title, "image text title"), body: requiredText(value.body, "image text body"), image: parseImage(value.image), reversed: value.reversed === true };
     case "capabilities": return { type: "capabilities", eyebrow: optionalText(value.eyebrow), title: requiredText(value.title, "capabilities title"), items: parseItems(value.items) };
     case "cta": return { type: "cta", eyebrow: optionalText(value.eyebrow), title: requiredText(value.title, "CTA title"), body: optionalText(value.body), label: requiredText(value.label, "CTA label"), href: safeHref(value.href) };

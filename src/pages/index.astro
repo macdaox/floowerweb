@@ -3,6 +3,7 @@ import Reveal from "../components/public/Reveal.astro";
 import ResponsiveImage from "../components/public/ResponsiveImage.astro";
 import PublicLayout from "../layouts/PublicLayout.astro";
 import { loadHomeContent } from "../features/public/home";
+import sanitizeHtml from "sanitize-html";
 
 const content = await loadHomeContent(Astro.locals.runtime?.env?.DB);
 const [heroFirst, heroSecond = ""] = (content.hero?.title ?? "").split(",");
@@ -11,7 +12,9 @@ const detail = content.sections.find((section) => section.type === "imageText");
 const craft = content.sections.find((section) => section.type === "capabilities");
 const trade = content.sections.find((section) => section.type === "cta");
 const statementText = statement?.type === "richText"
-  ? statement.document.content.map((paragraph) => paragraph.content?.map((node) => node.text).join("") ?? "").filter(Boolean).join(" ")
+  ? statement.html
+    ? sanitizeHtml(statement.html, { allowedTags: [], allowedAttributes: {} })
+    : statement.document?.content.map((paragraph) => paragraph.content?.map((node) => node.text).join("") ?? "").filter(Boolean).join(" ") ?? ""
   : "";
 ---
 
