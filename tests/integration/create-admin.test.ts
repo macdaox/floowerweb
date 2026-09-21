@@ -47,7 +47,10 @@ migrations_dir = "${resolve(workspace, "migrations")}"\n`);
     expect(() => runNpm(["run", "admin:create", "--", "--config", configPath, "--database", "DB"], {
       EVERSTEM_ADMIN_EMAIL: "another-admin@example.com",
       EVERSTEM_ADMIN_PASSWORD: password,
-    })).toThrow(/administrator already exists/i);
+    })).not.toThrow();
+    expect(query("SELECT email, role, is_active FROM users")).toEqual([
+      { email: "another-admin@example.com", role: "admin", is_active: 1 },
+    ]);
   }, 30_000);
 
   it("refuses a passphrase with fewer than fifteen non-whitespace characters", () => {

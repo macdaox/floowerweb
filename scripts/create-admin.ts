@@ -28,14 +28,11 @@ const username = `admin-${id.slice(0, 8)}`;
 
 try {
   const existing = findExistingAdministrator();
-  if (existing && existing.email !== email) {
-    throw new Error("An administrator already exists; use the authenticated user-management workflow instead.");
-  }
   const passwordHash = await hashPassword(password);
   if (existing) {
     await writeFile(sqlFile, `UPDATE users
-SET password_hash = ${literal(passwordHash)}, role = 'admin', is_active = 1, updated_at = ${literal(now)}
-WHERE email = ${literal(email)};`);
+SET email = ${literal(email)}, password_hash = ${literal(passwordHash)}, role = 'admin', is_active = 1, updated_at = ${literal(now)}
+WHERE email = ${literal(existing.email)};`);
   } else {
     await writeFile(sqlFile, `INSERT INTO users (id, email, username, display_name, password_hash, role, is_active, created_at, updated_at)
 SELECT ${literal(id)}, ${literal(email)}, ${literal(username)}, 'Administrator', ${literal(passwordHash)}, 'admin', 1, ${literal(now)}, ${literal(now)}
@@ -70,7 +67,10 @@ function literal(value: string): string {
 }
 
 function findExistingAdministrator(): { email: string } | undefined {
-  const candidate = queryD1("SELECT email FROM users WHERE email = " + literal(email) + " OR role = 'admin' LIMIT 1")[0];
+  const candidate = queryD1(`SELECT email FROM users
+WHERE email = ${literal(email)} OR (role = 'admin' AND username LIKE 'admin-%' AND display_name = 'Administrator')
+ORDER BY CASE WHEN username LIKE 'admin-%' AND display_name = 'Administrator' THEN 0 ELSE 1 END
+LIMIT 1`)[0];
   return candidate?.email ? { email: candidate.email } : undefined;
 }
 
