@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Miniflare } from "miniflare";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDb } from "../../src/lib/db/client";
 import { hashPassword } from "../../src/features/auth/password";
 import { createSession, renewSessionIfNeeded } from "../../src/features/auth/session";
@@ -72,6 +72,23 @@ describe("authentication API", () => {
     expect(unknown.status).toBe(401);
     expect(wrongPassword.status).toBe(401);
     await expect(unknown.json()).resolves.toEqual(await wrongPassword.json());
+  });
+
+  it("logs a sanitized diagnostic when login fails after credential verification", async () => {
+    await database.prepare("DROP TABLE audit_logs").run();
+    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await login({
+      request: request("/api/auth/login", { email: "admin@example.com", password: "correct horse battery staple" }),
+      locals: locals(database),
+    } as never);
+
+    expect(response.status).toBe(500);
+    expect(diagnostic).toHaveBeenCalledWith("Authentication request failed.", expect.objectContaining({
+      name: expect.any(String),
+      message: expect.stringContaining("audit_logs"),
+    }));
+    diagnostic.mockRestore();
   });
 
   it("rejects cross-origin login and removes the session during same-origin logout", async () => {

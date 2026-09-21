@@ -51,5 +51,8 @@ function withCookie(response: Response, cookie: string): Response {
 
 function errorResponse(error: unknown): Response {
   if (error instanceof HttpError) return fail(error.code, error.message, error.status, error.fields);
+  console.error("Authentication request failed.", error instanceof Error
+    ? { name: error.name, message: error.message, stack: error.stack }
+    : { name: "UnknownError", message: String(error) });
   return fail("internal_error", "Unable to process this request.", 500);
 }
