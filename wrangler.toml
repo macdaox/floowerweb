@@ -26,8 +26,7 @@ bucket_name = "everstem-media-preview"
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "everstem-production"
-# Replace after `wrangler d1 create everstem-production`.
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "3bdc89c4-0b94-40b2-8e58-36226ef77cd1"
 
 [[env.production.r2_buckets]]
 binding = "MEDIA"
