@@ -11,12 +11,15 @@ import { authenticatePassword, recordAudit } from "../../../features/auth/servic
 
 const LOGIN_LIMIT = 10;
 const LOGIN_WINDOW_SECONDS = 15 * 60;
+type LoginStage = "request" | "rate_limit" | "credentials" | "session" | "audit";
 
 export const POST: APIRoute = async ({ request, locals }) => {
+  let stage: LoginStage = "request";
   try {
     assertAllowedOrigin(request, new URL(request.url).origin);
     const db = createDb(locals.runtime.env.DB);
     const ipAddress = clientIp(request);
+    stage = "rate_limit";
     if (!await consumeRateLimit(db, `auth:login:${ipAddress}`, LOGIN_LIMIT, LOGIN_WINDOW_SECONDS)) {
       return fail("too_many_requests", "Too many login attempts. Please try again later.", 429);
     }
@@ -29,14 +32,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
       throw invalidCredentials();
     }
 
+    stage = "credentials";
     const user = await authenticatePassword(db, input.email, input.password);
     if (!user) throw invalidCredentials();
 
+    stage = "session";
     const session = await createSession(db, user.id, { ipAddress, userAgent: request.headers.get("user-agent") });
+    stage = "audit";
     await recordAudit(db, user.id, "login", "user", user.id, { ipAddress });
     return withCookie(ok({ user }), sessionCookie(session.token, session.expiresAt));
   } catch (error) {
-    return errorResponse(error);
+    return errorResponse(error, stage);
   }
 };
 
@@ -49,10 +55,10 @@ function withCookie(response: Response, cookie: string): Response {
   return response;
 }
 
-function errorResponse(error: unknown): Response {
+function errorResponse(error: unknown, stage: LoginStage): Response {
   if (error instanceof HttpError) return fail(error.code, error.message, error.status, error.fields);
   console.error("Authentication request failed.", error instanceof Error
-    ? { name: error.name, message: error.message, stack: error.stack }
-    : { name: "UnknownError", message: String(error) });
-  return fail("internal_error", "Unable to process this request.", 500);
+    ? { stage, name: error.name, message: error.message, stack: error.stack }
+    : { stage, name: "UnknownError", message: String(error) });
+  return fail("internal_error", "Unable to process this request.", 500, { stage });
 }

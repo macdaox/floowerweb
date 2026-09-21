@@ -84,7 +84,11 @@ describe("authentication API", () => {
     } as never);
 
     expect(response.status).toBe(500);
+    await expect(response.clone().json()).resolves.toMatchObject({
+      error: { code: "internal_error", fields: { stage: "audit" } },
+    });
     expect(diagnostic).toHaveBeenCalledWith("Authentication request failed.", expect.objectContaining({
+      stage: "audit",
       name: expect.any(String),
       message: expect.stringContaining("audit_logs"),
     }));

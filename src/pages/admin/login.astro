@@ -37,10 +37,18 @@ import "../../styles/admin.css";
         if (error) error.textContent = "";
         try {
           const response = await fetch("/api/auth/login", { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify(Object.fromEntries(new FormData(form))) });
-          if (!response.ok) throw new Error();
+          const result = await response.json().catch(() => undefined) as { error?: { code?: string; fields?: { stage?: string } } } | undefined;
+          if (!response.ok) {
+            if (error) error.textContent = result?.error?.code === "internal_error"
+              ? `登录服务异常（${result.error.fields?.stage ?? "unknown"}），请联系管理员。`
+              : result?.error?.code === "too_many_requests"
+                ? "尝试次数过多，请稍后再试。"
+                : "邮箱或密码不正确，请重试。";
+            return;
+          }
           window.location.assign("/admin");
         } catch {
-          if (error) error.textContent = "邮箱或密码不正确，请重试。";
+          if (error) error.textContent = "登录服务暂时不可用，请稍后再试。";
         } finally {
           if (button) button.disabled = false;
           form.setAttribute("aria-busy", "false");
