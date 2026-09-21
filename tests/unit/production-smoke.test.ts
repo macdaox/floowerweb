@@ -16,6 +16,8 @@ describe("production smoke configuration", () => {
     expect(packageJson.scripts["test:smoke"]).toContain("playwright.smoke.config.ts");
     expect(config).toContain("wrangler pages dev ./dist");
     expect(config).toContain("SESSION_SECRET");
+    expect(wranglerConfig).toContain('name = "floowerweb"');
+    expect(wranglerConfig).toContain("keep_vars = true");
     expect(wranglerConfig).toContain('main = "./dist/_worker.js/index.js"');
     expect(wranglerConfig).toContain("[assets]");
     expect(wranglerConfig).toContain('binding = "ASSETS"');
