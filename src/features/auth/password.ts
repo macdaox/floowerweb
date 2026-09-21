@@ -1,4 +1,5 @@
-const PBKDF2_ITERATIONS = 600_000;
+// workerd rejects PBKDF2 derivations above 100,000 iterations.
+const PBKDF2_ITERATIONS = 100_000;
 const SALT_BYTES = 16;
 const DERIVED_KEY_BYTES = 32;
 const PASSWORD_HASH_PREFIX = "pbkdf2-sha256";

@@ -9,7 +9,7 @@ describe("password hashing", () => {
     const [algorithm, iterations, salt, derived] = encoded.split("$");
 
     expect(encoded).not.toContain("correct horse");
-    expect([algorithm, iterations]).toEqual(["pbkdf2-sha256", "600000"]);
+    expect([algorithm, iterations]).toEqual(["pbkdf2-sha256", "100000"]);
     expect(Buffer.from(salt, "base64url")).toHaveLength(16);
     expect(Buffer.from(derived, "base64url")).toHaveLength(32);
     await expect(verifyPassword("correct horse battery staple", encoded)).resolves.toBe(true);
@@ -23,8 +23,8 @@ describe("password hashing", () => {
   it("rejects hashes that advertise a different PBKDF2 work factor", async () => {
     const encoded = await hashPassword("correct horse battery staple");
 
-    await expect(verifyPassword("correct horse battery staple", encoded.replace("$600000$", "$1$"))).resolves.toBe(false);
-    await expect(verifyPassword("correct horse battery staple", encoded.replace("$600000$", "$900000000$"))).resolves.toBe(false);
+    await expect(verifyPassword("correct horse battery staple", encoded.replace("$100000$", "$1$"))).resolves.toBe(false);
+    await expect(verifyPassword("correct horse battery staple", encoded.replace("$100000$", "$900000000$"))).resolves.toBe(false);
   });
 });
 

@@ -6,7 +6,7 @@ import type { AuthUser } from "./authorize";
 type UserForLogin = AuthUser & { passwordHash: string; isActive: number };
 
 // Valid PBKDF2 output for a non-secret dummy value. It prevents a faster path for an unknown email.
-const DUMMY_PASSWORD_HASH = "pbkdf2-sha256$600000$AAAAAAAAAAAAAAAAAAAAAA$FcbXVS2cM_81_4A2A3dK2UWBR41y0AbUxhFuQSWMT9A";
+const DUMMY_PASSWORD_HASH = "pbkdf2-sha256$100000$AAAAAAAAAAAAAAAAAAAAAA$901FVwaCBOwSM6oEPEvRXH3IodmWmeUln7asez94vlE";
 
 export async function authenticatePassword(db: AppDb, email: string, password: string): Promise<AuthUser | undefined> {
   const user = await db.get<UserForLogin>(sql`
