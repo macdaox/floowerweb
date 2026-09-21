@@ -65,7 +65,7 @@ npm run admin:create -- --remote --env preview
 在 Cloudflare 应用的变量和密钥中设置以下值：
 
 - 密钥 `SESSION_SECRET`：每个环境使用不同的随机值，至少包含 32 字节随机数据。
-- 变量 `PUBLIC_SITE_URL`：该环境的规范 HTTPS 站点根地址，不得包含路径。
+- 变量 `PUBLIC_SITE_URL`：当前 `workers.dev` 生产地址已写入 `wrangler.toml`；绑定自定义域名后，应同步改为该域名的规范 HTTPS 站点根地址，不得包含路径。
 - 变量 `MEDIA_MAX_BYTES`：如果不打算修改上传限制，设为 `10485760`。
 - 可选变量 `PUBLIC_IMAGE_RESIZING_ORIGIN`：仅在某个 HTTPS 源站已启用 Cloudflare Image Resizing，并且该源站的 `/media/*` 能够访问本应用时设置。
 

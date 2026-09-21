@@ -24,6 +24,7 @@ describe("production smoke configuration", () => {
     expect(wranglerConfig).toContain('database_name = "everstem-production"');
     expect(wranglerConfig).toContain('database_id = "3bdc89c4-0b94-40b2-8e58-36226ef77cd1"');
     expect(wranglerConfig).toContain('bucket_name = "everstem-media-production"');
+    expect(wranglerConfig).toContain('PUBLIC_SITE_URL = "https://floowerweb.zhaomeili1016.workers.dev"');
     expect(assetsIgnore).toContain("_worker.js");
     expect(assetsIgnore).toContain("_routes.json");
     expect(Number(packageJson.devDependencies.wrangler.replace(/^[^0-9]*/u, "").split(".")[0])).toBeGreaterThanOrEqual(4);
