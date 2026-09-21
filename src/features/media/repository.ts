@@ -58,6 +58,9 @@ export async function findMediaReferences(db: D1Database, id: string): Promise<s
     ["space cover", "SELECT COUNT(*) AS count FROM spaces WHERE cover_media_id = ?", id],
     ["space gallery", "SELECT COUNT(*) AS count FROM space_images WHERE media_id = ?", id],
     ["article cover", "SELECT COUNT(*) AS count FROM articles WHERE cover_media_id = ?", id],
+    ["product body", "SELECT COUNT(*) AS count FROM products WHERE body LIKE '%' || ? || '%'", `/media/${encodeURIComponent(media.object_key)}`],
+    ["space body", "SELECT COUNT(*) AS count FROM spaces WHERE body LIKE '%' || ? || '%'", `/media/${encodeURIComponent(media.object_key)}`],
+    ["article body", "SELECT COUNT(*) AS count FROM articles WHERE body LIKE '%' || ? || '%'", `/media/${encodeURIComponent(media.object_key)}`],
     ["page section", "SELECT COUNT(DISTINCT pages.id) AS count FROM pages, json_tree(pages.sections_json) AS node WHERE node.key = 'src' AND node.value = ?", `/media/${encodeURIComponent(media.object_key)}`],
   ] as const;
   const results = await db.batch(checks.map(([, sql, value]) => db.prepare(sql).bind(value)));
@@ -73,9 +76,12 @@ export async function markMediaDeleted(db: D1Database, id: string, timestamp: st
       AND NOT EXISTS (SELECT 1 FROM spaces WHERE cover_media_id = ?)
       AND NOT EXISTS (SELECT 1 FROM space_images WHERE media_id = ?)
       AND NOT EXISTS (SELECT 1 FROM articles WHERE cover_media_id = ?)
+      AND NOT EXISTS (SELECT 1 FROM products WHERE body LIKE '%' || '/media/' || (SELECT object_key FROM media WHERE id = ?) || '%')
+      AND NOT EXISTS (SELECT 1 FROM spaces WHERE body LIKE '%' || '/media/' || (SELECT object_key FROM media WHERE id = ?) || '%')
+      AND NOT EXISTS (SELECT 1 FROM articles WHERE body LIKE '%' || '/media/' || (SELECT object_key FROM media WHERE id = ?) || '%')
       AND NOT EXISTS (SELECT 1 FROM pages, json_tree(pages.sections_json) AS node
         WHERE node.key = 'src' AND node.value = '/media/' || (SELECT object_key FROM media WHERE id = ?))`)
-    .bind(timestamp, timestamp, id, id, id, id, id, id, id, id);
+    .bind(timestamp, timestamp, id, id, id, id, id, id, id, id, id, id, id);
   const statements = actorUserId ? [
     mutation,
     db.prepare("INSERT INTO audit_logs (id, actor_user_id, action, entity_type, entity_id, context_text, created_at) SELECT ?, ?, 'delete', 'media', ?, NULL, ? WHERE changes() = 1")

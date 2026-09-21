@@ -5,7 +5,7 @@ import { HttpError } from "../../lib/http/errors";
 import { pageInsertStatement, pageUpdateStatement, type PageWriteStatement } from "./write";
 import { isMeaningfulEnglishAltText } from "../media/schemas";
 import { pageMediaObjectKeys } from "./schemas";
-import { legacyTextToRichHtml, normalizeRichText } from "../rich-text/schema";
+import { legacyTextToRichHtml, normalizeRichText, richTextMediaObjectKeys } from "../rich-text/schema";
 
 export type AdminEntity = PreviewKind;
 export type AdminStatus = "draft" | "published" | "archived";
@@ -137,6 +137,7 @@ export async function createAdminContent(db: D1Database, entity: AdminEntity, da
   const now = new Date().toISOString();
   const values = withCreateDefaults(entity, data);
   if (hasOwn(values, "coverMediaId")) await validateCoverMedia(db, entity, undefined, values.coverMediaId, "attachment");
+  if (hasOwn(values, "body")) await validateRichTextMedia(db, values.body, false);
   if (entity === "page") await validatePageMedia(db, values.sections);
   const fields = Object.keys(values);
   const mutation = entity === "page"
@@ -160,6 +161,7 @@ export async function updateAdminContent(db: D1Database, entity: AdminEntity, id
   const nextUpdatedAt = nextTimestamp(String(current.updatedAt));
   const fields = Object.keys(data);
   if (hasOwn(data, "coverMediaId")) await validateCoverMedia(db, entity, id, data.coverMediaId, "attachment");
+  if (hasOwn(data, "body")) await validateRichTextMedia(db, data.body, current.status === "published");
   if (entity === "page" && hasOwn(data, "sections")) await validatePageMedia(db, data.sections);
   if (current.status === "published") {
     const merged = { ...current, ...data };
@@ -213,6 +215,7 @@ export async function transitionAdminContent(
   }
   if (action === "publish") {
     validatePublish(entity, current);
+    if (hasOwn(current, "body")) await validateRichTextMedia(db, current.body, true);
     await validateCoverMedia(db, entity, id, current.coverMediaId, "publish");
     await validateGalleryMedia(db, entity, id);
   }
@@ -292,6 +295,22 @@ async function validateGalleryMedia(db: D1Database, entity: AdminEntity, content
     WHERE gallery.${config.parentColumn} = ?`).bind(contentId).all<{ alt_text: string | null; active_media_id: string | null }>();
   if (rows.results.every((row) => row.active_media_id && isMeaningfulEnglishAltText(row.alt_text))) return;
   throw new HttpError("publish_validation", "Complete all public fields before publishing.", 422, { gallery: "Every gallery image must be active and have meaningful English alternative text." });
+}
+
+async function validateRichTextMedia(db: D1Database, value: unknown, publishing: boolean): Promise<void> {
+  if (typeof value !== "string") return;
+  const keys = richTextMediaObjectKeys(value);
+  if (!keys.length) return;
+  const placeholders = keys.map(() => "?").join(", ");
+  const rows = await db.prepare(`SELECT object_key, alt_text FROM media WHERE is_deleted = 0 AND object_key IN (${placeholders})`)
+    .bind(...keys).all<{ object_key: string; alt_text: string | null }>();
+  const allActive = rows.results.length === keys.length;
+  const allDescribed = rows.results.every((row) => isMeaningfulEnglishAltText(row.alt_text));
+  if (allActive && (!publishing || allDescribed)) return;
+  const message = publishing
+    ? "Every inline image must be active and have meaningful English alternative text."
+    : "Choose active inline images from the media library.";
+  throw new HttpError(publishing ? "publish_validation" : "invalid_media", publishing ? "Complete all public fields before publishing." : "One or more inline images are unavailable.", 422, { body: message });
 }
 
 async function validatePageMedia(db: D1Database, sections: unknown): Promise<void> {

@@ -242,6 +242,25 @@ describe("R2 media management", () => {
     expect(await bucket.head(referenced.objectKey)).not.toBeNull();
   });
 
+  it("protects media referenced only inside rich text bodies", async () => {
+    const referenced = await uploadMedia(env(), file(jpegBytes, "inline.jpg", "image/jpeg"), { altText: "Inline magnolia branch", createdByUserId: "editor-1" });
+    const html = `<p>Copy</p><img src="/media/${referenced.objectKey}" alt="Inline magnolia branch">`;
+    await database.batch([
+      database.prepare("UPDATE products SET body = ? WHERE id = 'product-1'").bind(html),
+      database.prepare("UPDATE spaces SET body = ? WHERE id = 'space-1'").bind(html),
+      database.prepare(`INSERT INTO articles (id, locale, title, slug, body, status, created_at, updated_at) VALUES ('article-inline', 'en', 'Inline', 'inline', ?, 'draft', ?, ?)`).bind(html, "2026-09-19T08:00:00.000Z", "2026-09-19T08:00:00.000Z"),
+    ]);
+
+    const blocked = await deleteRoute(routeContext(deleteRequest(referenced.id), "admin", {}, referenced.id) as never);
+    expect(blocked.status).toBe(409);
+    await database.batch([
+      database.prepare("UPDATE products SET body = '' WHERE id = 'product-1'"),
+      database.prepare("UPDATE spaces SET body = '' WHERE id = 'space-1'"),
+      database.prepare("UPDATE articles SET body = '' WHERE id = 'article-inline'"),
+    ]);
+    expect((await deleteRoute(routeContext(deleteRequest(referenced.id), "admin", {}, referenced.id) as never)).status).toBe(200);
+  });
+
   it("restores the object when a content reference appears during deletion", async () => {
     const uploaded = await uploadMedia(env(), file(jpegBytes, "racing-reference.jpg", "image/jpeg"), { altText: "Racing reference", createdByUserId: "editor-1" });
     const racingBucket = new Proxy(bucket, {
