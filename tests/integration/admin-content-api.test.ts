@@ -31,6 +31,21 @@ describe("admin content API", () => {
 
   afterEach(async () => { await miniflare.dispose(); });
 
+  it("sanitizes rich text at the API boundary and rejects oversized bodies", async () => {
+    const created = await create(articleRoute, "editor", {
+      title: "Safe article", slug: "safe-article", summary: "A safe summary.", author: "EVERSTEM Studio",
+      body: '<h2 onclick="bad()">Heading</h2><script>alert(1)</script><p>Copy</p>',
+    });
+    expect(created.status).toBe(201);
+    const id = (await body<{ id: string }>(created)).data.id;
+    await expect(database.prepare("SELECT body FROM articles WHERE id = ?").bind(id).first()).resolves.toEqual({ body: "<h2>Heading</h2><p>Copy</p>" });
+
+    const oversized = await create(articleRoute, "editor", {
+      title: "Too long", slug: "too-long", body: "x".repeat(200_001),
+    });
+    expect(oversized.status).toBe(422);
+  });
+
   it("allows editors to create drafts, blocks sales, validates publish, and rejects stale updates", async () => {
     const created = await mutate(productRoute, "editor", "new", {
       version: 1,

@@ -1,5 +1,6 @@
 import { initializeGalleryEditor } from "./GalleryEditor";
 import { openMediaPicker, type MediaItem } from "./MediaPicker";
+import { mountRichTextEditor, type RichTextEditorController } from "./RichTextEditor";
 
 export type ContentEntity = "products" | "categories" | "spaces" | "articles" | "pages";
 export type ContentRecord = Record<string, unknown> & { id?: string; updatedAt?: string; status?: string };
@@ -12,7 +13,7 @@ export type ContentEditorController = {
 type Field = {
   name: string;
   label: string;
-  kind?: "input" | "textarea" | "number" | "select" | "media" | "pageSections";
+  kind?: "input" | "textarea" | "richText" | "number" | "select" | "media" | "pageSections";
   required?: boolean;
   rows?: number;
 };
@@ -28,7 +29,7 @@ const fields: Record<ContentEntity, Field[]> = {
   products: [
     { name: "name", label: "名称", required: true }, { name: "slug", label: "Slug", required: true },
     { name: "productCode", label: "产品编号", required: true }, { name: "categoryId", label: "分类", kind: "select", required: true },
-    { name: "summary", label: "摘要", kind: "textarea", rows: 3 }, { name: "body", label: "正文", kind: "textarea", rows: 7 },
+    { name: "summary", label: "摘要", kind: "textarea", rows: 3 }, { name: "body", label: "正文", kind: "richText" },
     { name: "specifications", label: "规格 JSON", kind: "textarea", rows: 4, required: true },
     { name: "seoTitle", label: "SEO 标题" }, { name: "seoDescription", label: "SEO 描述", kind: "textarea", rows: 2 },
   ],
@@ -41,13 +42,13 @@ const fields: Record<ContentEntity, Field[]> = {
   spaces: [
     { name: "title", label: "标题", required: true }, { name: "slug", label: "Slug", required: true },
     { name: "category", label: "分类", required: true }, { name: "location", label: "地点" },
-    { name: "summary", label: "摘要", kind: "textarea", rows: 3 }, { name: "body", label: "正文", kind: "textarea", rows: 7 },
+    { name: "summary", label: "摘要", kind: "textarea", rows: 3 }, { name: "body", label: "正文", kind: "richText" },
     { name: "seoTitle", label: "SEO 标题" }, { name: "seoDescription", label: "SEO 描述", kind: "textarea", rows: 2 },
   ],
   articles: [
     { name: "title", label: "标题", required: true }, { name: "slug", label: "Slug", required: true },
     { name: "author", label: "作者" }, { name: "summary", label: "摘要", kind: "textarea", rows: 3 },
-    { name: "body", label: "正文", kind: "textarea", rows: 8 }, { name: "seoTitle", label: "SEO 标题" },
+    { name: "body", label: "正文", kind: "richText" }, { name: "seoTitle", label: "SEO 标题" },
     { name: "coverMediaId", label: "封面媒体", kind: "media" }, { name: "seoDescription", label: "SEO 描述", kind: "textarea", rows: 2 },
   ],
   pages: [
@@ -66,6 +67,9 @@ export function initializeContentEditor(root: HTMLElement, options?: EditorOptio
   let record: ContentRecord = options?.record ?? {};
   let dirty = false;
   let submitting = false;
+  let pendingUploads = 0;
+  const richTextEditors: RichTextEditorController[] = [];
+  const richTextMounts: Array<{ host: HTMLElement; control: HTMLInputElement; value: string }> = [];
 
   const heading = document.createElement("h2");
   heading.textContent = record.id ? "编辑内容" : "新建内容";
@@ -85,7 +89,7 @@ export function initializeContentEditor(root: HTMLElement, options?: EditorOptio
 
   for (const field of fields[entity]) {
     const group = document.createElement("div");
-    group.className = field.kind === "textarea" ? "content-editor__field content-editor__field--wide" : "content-editor__field";
+    group.className = field.kind === "textarea" || field.kind === "richText" ? "content-editor__field content-editor__field--wide" : "content-editor__field";
     const label = document.createElement("label");
     label.textContent = field.label;
     const control = createControl(field);
@@ -100,6 +104,11 @@ export function initializeContentEditor(root: HTMLElement, options?: EditorOptio
     error.setAttribute("role", "alert");
     group.appendChild(label);
     group.appendChild(control);
+    if (field.kind === "richText") {
+      const host = document.createElement("div");
+      group.appendChild(host);
+      richTextMounts.push({ host, control: control as HTMLInputElement, value: control.value });
+    }
     if (field.kind === "media") addMediaPickerControls(group, control as HTMLInputElement);
     if (field.kind === "pageSections") addPageMediaControls(group, control as HTMLTextAreaElement);
     group.appendChild(error);
@@ -125,6 +134,21 @@ export function initializeContentEditor(root: HTMLElement, options?: EditorOptio
   const gallery = document.createElement("section");
   gallery.hidden = entity !== "products" && entity !== "spaces";
   root.replaceChildren(header, form, message, gallery);
+  for (const mount of richTextMounts) {
+    const editor = mountRichTextEditor(mount.host, {
+      value: mount.value,
+      onChange: (html) => {
+        mount.control.value = html;
+        mount.control.dispatchEvent(new Event("input", { bubbles: true }));
+      },
+      onUploadStateChange: (uploading) => {
+        pendingUploads = Math.max(0, pendingUploads + (uploading ? 1 : -1));
+        setBusy(submitting || pendingUploads > 0);
+      },
+    });
+    mount.control.value = editor.getHtml();
+    richTextEditors.push(editor);
+  }
   syncActions();
   syncGallery();
   const categoryControl = form.elements.namedItem("categoryId");
@@ -148,6 +172,7 @@ export function initializeContentEditor(root: HTMLElement, options?: EditorOptio
       if (disposed) return;
       disposed = true;
       dirty = false;
+      for (const editor of richTextEditors) editor.destroy();
       window.removeEventListener("beforeunload", unload);
       activeEditors.delete(root);
       delete root.dataset.initialized;
@@ -164,7 +189,7 @@ export function initializeContentEditor(root: HTMLElement, options?: EditorOptio
   return controller;
 
   async function saveRecord(): Promise<void> {
-    if (submitting) return;
+    if (submitting || pendingUploads > 0) return;
     submitting = true;
     setBusy(true);
     clearErrors();
@@ -191,7 +216,7 @@ export function initializeContentEditor(root: HTMLElement, options?: EditorOptio
   }
 
   async function performAction(action: "preview" | "publish" | "unpublish" | "archive"): Promise<void> {
-    if (!record.id || submitting) return;
+    if (!record.id || submitting || pendingUploads > 0) return;
     if (dirty) {
       message.setAttribute("role", "alert");
       message.textContent = "请先保存更改，再执行此操作。";
@@ -287,6 +312,7 @@ function readForm(form: HTMLFormElement, entity: ContentEntity): Record<string, 
 }
 
 function createControl(field: Field): HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement {
+  if (field.kind === "richText") { const control = document.createElement("input"); control.type = "hidden"; return control; }
   if (field.kind === "textarea" || field.kind === "pageSections") { const control = document.createElement("textarea"); control.rows = field.rows ?? 4; return control; }
   if (field.kind === "select") { const control = document.createElement("select"); const option = document.createElement("option"); option.value = ""; option.textContent = "选择分类"; control.appendChild(option); return control; }
   const control = document.createElement("input");

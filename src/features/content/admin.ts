@@ -5,6 +5,7 @@ import { HttpError } from "../../lib/http/errors";
 import { pageInsertStatement, pageUpdateStatement, type PageWriteStatement } from "./write";
 import { isMeaningfulEnglishAltText } from "../media/schemas";
 import { pageMediaObjectKeys } from "./schemas";
+import { legacyTextToRichHtml, normalizeRichText } from "../rich-text/schema";
 
 export type AdminEntity = PreviewKind;
 export type AdminStatus = "draft" | "published" | "archived";
@@ -56,15 +57,19 @@ const configurations: Record<AdminEntity, EntityConfig> = {
 
 const requiredText = z.string().trim().min(1).max(200);
 const optionalText = z.string().trim().max(4_000).optional();
+const optionalRichText = z.string().max(200_000).transform((value, context) => {
+  try { return normalizeRichText(value); }
+  catch (error) { context.addIssue({ code: z.ZodIssueCode.custom, message: error instanceof Error ? error.message : "Invalid rich text." }); return z.NEVER; }
+}).optional();
 const optionalId = z.string().trim().max(120).nullable().optional();
 const slug = z.string().trim().min(1).max(160).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
 const specifications = z.record(z.string().trim().min(1).max(80), z.string().trim().max(500)).refine((value) => Object.keys(value).length <= 50, "Too many specifications.");
 
 const dataSchemas: Record<AdminEntity, ZodType<Record<string, unknown>>> = {
-  product: z.object({ name: requiredText, slug, productCode: requiredText.max(80), summary: optionalText, body: optionalText, specifications, categoryId: requiredText.max(120), coverMediaId: optionalId, seoTitle: optionalText, seoDescription: optionalText }).strict(),
+  product: z.object({ name: requiredText, slug, productCode: requiredText.max(80), summary: optionalText, body: optionalRichText, specifications, categoryId: requiredText.max(120), coverMediaId: optionalId, seoTitle: optionalText, seoDescription: optionalText }).strict(),
   category: z.object({ name: requiredText, slug, description: optionalText, coverMediaId: optionalId, sortOrder: z.number().int().min(0).max(1_000_000).optional(), seoTitle: optionalText, seoDescription: optionalText }).strict(),
-  space: z.object({ title: requiredText, slug, category: requiredText, location: optionalText, summary: optionalText, body: optionalText, coverMediaId: optionalId, seoTitle: optionalText, seoDescription: optionalText }).strict(),
-  article: z.object({ title: requiredText, slug, summary: optionalText, body: optionalText, author: optionalText, coverMediaId: optionalId, seoTitle: optionalText, seoDescription: optionalText }).strict(),
+  space: z.object({ title: requiredText, slug, category: requiredText, location: optionalText, summary: optionalText, body: optionalRichText, coverMediaId: optionalId, seoTitle: optionalText, seoDescription: optionalText }).strict(),
+  article: z.object({ title: requiredText, slug, summary: optionalText, body: optionalRichText, author: optionalText, coverMediaId: optionalId, seoTitle: optionalText, seoDescription: optionalText }).strict(),
   page: z.object({ pageKey: z.string().trim().min(1).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u), sections: z.unknown(), seoTitle: optionalText, seoDescription: optionalText }).strict(),
 };
 
@@ -314,6 +319,7 @@ function mapRow(entity: AdminEntity, row: Record<string, unknown>): AdminResult 
     const value = row[column];
     if (property === "specifications") output[property] = parseJsonObject(value, {});
     else if (property === "sections") output[property] = parseJsonObject(value, []);
+    else if (property === "body" && typeof value === "string") output[property] = /<\/?[a-z][\s\S]*>/iu.test(value) ? normalizeRichText(value) : legacyTextToRichHtml(value);
     else output[property] = value;
   }
   if (entity === "article") output.publishedAt = row.published_at;
