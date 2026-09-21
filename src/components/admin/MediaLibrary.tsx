@@ -1,4 +1,5 @@
 import type { MediaItem } from "./MediaPicker";
+import { uploadAdminImage } from "./media-upload";
 
 export function initializeMediaLibrary(root: HTMLElement): void {
   if (root.dataset.initialized) return;
@@ -67,16 +68,8 @@ export function initializeMediaLibrary(root: HTMLElement): void {
     upload.disabled = true;
     uploadStatus.removeAttribute("role");
     uploadStatus.textContent = "正在上传…";
-    const data = new FormData();
-    data.set("file", selected);
-    data.set("altText", altInput.value);
     try {
-      const response = await fetch("/api/admin/media", { method: "POST", body: data, headers: { accept: "application/json" } });
-      const body = await response.json() as { ok: boolean; error?: { code?: string; message?: string; fields?: Record<string, string> } };
-      if (!response.ok || !body.ok) {
-        const message = body.error?.code === "unsupported_media_type" ? "仅支持有效的 JPG、PNG、WebP 或 AVIF 图片。" : body.error?.fields?.file ?? body.error?.message;
-        throw new Error(message ?? "上传失败，请重试。");
-      }
+      await uploadAdminImage(selected, altInput.value);
       form.reset();
       uploadStatus.textContent = "上传成功。";
       currentPage = 1;

@@ -36,6 +36,24 @@ export async function openMediaPicker(options: { excludeIds?: Set<string> } = {}
   searchButton.textContent = "搜索";
   searchForm.appendChild(search);
   searchForm.appendChild(searchButton);
+  const uploadForm = document.createElement("form");
+  uploadForm.className = "media-picker__upload";
+  const file = document.createElement("input");
+  file.type = "file";
+  file.accept = ".jpg,.jpeg,.png,.webp,.avif,image/jpeg,image/png,image/webp,image/avif";
+  file.setAttribute("aria-label", "选择要上传的图片");
+  const alt = document.createElement("input");
+  alt.type = "text";
+  alt.maxLength = 300;
+  alt.placeholder = "图片替代文本（英文）";
+  alt.setAttribute("aria-label", "图片替代文本");
+  const upload = document.createElement("button");
+  upload.type = "submit";
+  upload.className = "admin-primary-button";
+  upload.textContent = "上传并选择";
+  uploadForm.appendChild(file);
+  uploadForm.appendChild(alt);
+  uploadForm.appendChild(upload);
   const grid = document.createElement("div");
   grid.className = "media-picker__grid";
   const loadMore = document.createElement("button");
@@ -43,6 +61,7 @@ export async function openMediaPicker(options: { excludeIds?: Set<string> } = {}
   loadMore.className = "admin-secondary-button media-picker__more";
   loadMore.textContent = "加载更多媒体";
   dialog.appendChild(header);
+  dialog.appendChild(uploadForm);
   dialog.appendChild(searchForm);
   dialog.appendChild(status);
   dialog.appendChild(grid);
@@ -65,9 +84,29 @@ export async function openMediaPicker(options: { excludeIds?: Set<string> } = {}
     close.addEventListener("click", () => finish(null));
     dialog.addEventListener("cancel", (event) => { event.preventDefault(); finish(null); });
     searchForm.addEventListener("submit", (event) => { event.preventDefault(); void load(true); });
+    uploadForm.addEventListener("submit", (event) => { event.preventDefault(); void uploadAndChoose(); });
     loadMore.addEventListener("click", () => void load(false));
     dialog.showModal();
     void load(true);
+
+    async function uploadAndChoose(): Promise<void> {
+      const selected = file.files?.[0];
+      if (!selected) {
+        status.setAttribute("role", "alert");
+        status.textContent = "请选择图片。";
+        return;
+      }
+      upload.disabled = true;
+      status.removeAttribute("role");
+      status.textContent = "正在上传…";
+      try {
+        finish(await uploadAdminImage(selected, alt.value));
+      } catch (error) {
+        status.setAttribute("role", "alert");
+        status.textContent = error instanceof Error ? error.message : "上传失败，请重试。";
+        upload.disabled = false;
+      }
+    }
 
     async function load(reset: boolean): Promise<void> {
       if (loading || (!reset && page >= totalPages)) return;
@@ -122,3 +161,4 @@ export async function openMediaPicker(options: { excludeIds?: Set<string> } = {}
     }
   });
 }
+import { uploadAdminImage } from "./media-upload";
