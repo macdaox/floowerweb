@@ -258,6 +258,23 @@
   font-size: 2rem;
 }
 
+.rich-text-editor {
+  border: 1px solid rgb(51 45 39 / 35%);
+  background: #fff;
+}
+
+.rich-text-editor:focus-within { border-color: var(--color-charcoal); box-shadow: 0 0 0 2px rgb(51 45 39 / 12%); }
+.rich-text-editor__toolbar { display: flex; flex-wrap: wrap; gap: .35rem; padding: .6rem; border-bottom: 1px solid rgb(51 45 39 / 20%); background: var(--color-ivory); }
+.rich-text-editor__toolbar button { min-height: 2.2rem; padding: .35rem .65rem; border: 1px solid rgb(51 45 39 / 25%); background: #fff; color: var(--color-charcoal); cursor: pointer; }
+.rich-text-editor__canvas .ProseMirror { min-height: 16rem; padding: 1rem; outline: 0; line-height: 1.65; }
+.rich-text-editor__canvas img { display: block; max-width: 100%; height: auto; margin: 1rem auto; border: 1px solid rgb(51 45 39 / 18%); }
+.rich-text-editor__status { min-height: 1.4rem; margin: 0; padding: 0 .75rem .5rem; color: #9b3f32; }
+
+@media (max-width: 640px) {
+  .rich-text-editor__toolbar { align-items: stretch; }
+  .rich-text-editor__toolbar button { flex: 1 1 auto; }
+}
+
 .dashboard-panel__heading a {
   color: inherit;
   font-size: 0.68rem;
