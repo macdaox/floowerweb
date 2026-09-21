@@ -1,4 +1,5 @@
 import { openMediaPicker, type MediaItem } from "./MediaPicker";
+import { uploadAdminImage } from "./media-upload";
 
 type GalleryEntity = "product" | "space";
 type GalleryItem = {
@@ -23,7 +24,16 @@ export function initializeGalleryEditor(root: HTMLElement, options: { entity: Ga
   const add = document.createElement("button");
   add.type = "button";
   add.className = "admin-secondary-button";
-  add.textContent = "从媒体库添加";
+  add.textContent = "选择已有图片";
+  const upload = document.createElement("button");
+  upload.type = "button";
+  upload.className = "admin-secondary-button";
+  upload.textContent = "直接上传图片";
+  const file = document.createElement("input");
+  file.type = "file";
+  file.accept = "image/jpeg,image/png,image/webp,image/avif";
+  file.multiple = true;
+  file.hidden = true;
   const save = document.createElement("button");
   save.type = "button";
   save.className = "admin-primary-button";
@@ -36,11 +46,15 @@ export function initializeGalleryEditor(root: HTMLElement, options: { entity: Ga
   const actions = document.createElement("div");
   actions.className = "content-editor__actions";
   actions.appendChild(add);
+  actions.appendChild(upload);
+  actions.appendChild(file);
   actions.appendChild(save);
   root.className = "gallery-editor";
   root.replaceChildren(heading, help, list, actions, status);
 
   add.addEventListener("click", () => void addMedia());
+  upload.addEventListener("click", () => file.click());
+  file.addEventListener("change", () => { if (file.files) void uploadFiles(file.files); });
   save.addEventListener("click", () => void persist());
   void load();
 
@@ -73,12 +87,46 @@ export function initializeGalleryEditor(root: HTMLElement, options: { entity: Ga
     render();
   }
 
+  async function uploadFiles(files: FileList): Promise<void> {
+    upload.disabled = true;
+    status.removeAttribute("role");
+    status.textContent = "正在上传图片…";
+    const failures: string[] = [];
+    for (const selected of Array.from(files)) {
+      try {
+        const alt = window.prompt(`请输入 ${selected.name} 的英文替代文本`, selected.name.replace(/\.[^.]+$/u, ""))?.trim() ?? "";
+        const media = await uploadAdminImage(selected, alt);
+        items.push({ mediaId: media.id, altText: media.altText ?? "", sortOrder: items.length, isCover: items.length === 0, media });
+      } catch (error) {
+        failures.push(`${selected.name}: ${error instanceof Error ? error.message : "上传失败"}`);
+      }
+    }
+    render();
+    file.value = "";
+    upload.disabled = false;
+    if (failures.length) {
+      status.setAttribute("role", "alert");
+      status.textContent = `部分图片上传失败：${failures.join("；")}`;
+    } else status.textContent = "图片已加入图库，请点击“保存图库”。";
+  }
+
   function render(): void {
     list.replaceChildren();
     items.forEach((item, index) => {
       const card = document.createElement("article");
       card.className = "gallery-editor__item";
       card.dataset.galleryItem = "";
+      card.draggable = true;
+      card.addEventListener("dragstart", (event) => event.dataTransfer?.setData("text/plain", String(index)));
+      card.addEventListener("dragover", (event) => event.preventDefault());
+      card.addEventListener("drop", (event) => {
+        event.preventDefault();
+        const from = Number(event.dataTransfer?.getData("text/plain"));
+        if (!Number.isInteger(from) || from === index) return;
+        const [moved] = items.splice(from, 1);
+        if (moved) items.splice(index, 0, moved);
+        render();
+      });
       const image = document.createElement("img");
       image.src = item.media.url;
       image.alt = "";
@@ -136,6 +184,7 @@ export function initializeGalleryEditor(root: HTMLElement, options: { entity: Ga
     if (saving) return;
     saving = true;
     add.disabled = true;
+    upload.disabled = true;
     save.disabled = true;
     status.removeAttribute("role");
     status.textContent = "正在保存图库…";
@@ -156,6 +205,7 @@ export function initializeGalleryEditor(root: HTMLElement, options: { entity: Ga
     } finally {
       saving = false;
       add.disabled = false;
+      upload.disabled = false;
       save.disabled = false;
     }
   }

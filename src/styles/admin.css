@@ -283,6 +283,9 @@
 .page-sections-editor__card input:not([type="checkbox"]), .page-sections-editor__card textarea { width: 100%; }
 .page-sections-editor__add { display: flex; gap: .75rem; margin-top: 1rem; }
 
+[data-cover-preview] { width: min(12rem, 100%); aspect-ratio: 4 / 3; object-fit: cover; border: 1px solid rgb(51 45 39 / 20%); }
+.gallery-editor__item[draggable="true"] { cursor: grab; }
+
 .dashboard-panel__heading a {
   color: inherit;
   font-size: 0.68rem;

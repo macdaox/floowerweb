@@ -2,6 +2,7 @@ import { initializeGalleryEditor } from "./GalleryEditor";
 import { openMediaPicker, type MediaItem } from "./MediaPicker";
 import { mountRichTextEditor, type RichTextEditorController } from "./RichTextEditor";
 import { mountPageSectionsEditor, type PageSectionsEditorController } from "./PageSectionsEditor";
+import { uploadAdminImage } from "./media-upload";
 
 export type ContentEntity = "products" | "categories" | "spaces" | "articles" | "pages";
 export type ContentRecord = Record<string, unknown> & { id?: string; updatedAt?: string; status?: string };
@@ -347,18 +348,50 @@ function createControl(field: Field): HTMLInputElement | HTMLTextAreaElement | H
 }
 
 function addMediaPickerControls(group: HTMLElement, control: HTMLInputElement): void {
-  const choose = button("从媒体库选择封面", "admin-secondary-button");
+  const preview = document.createElement("img");
+  preview.dataset.coverPreview = "";
+  preview.hidden = true;
+  preview.alt = "当前封面预览";
+  const choose = button("选择已有图片", "admin-secondary-button");
+  const upload = button("直接上传", "admin-secondary-button");
+  const file = document.createElement("input");
+  file.type = "file";
+  file.accept = "image/jpeg,image/png,image/webp,image/avif";
+  file.hidden = true;
   const clear = button("清除封面", "admin-link-button");
   choose.addEventListener("click", async () => {
     const selected = await openMediaPicker();
     if (!selected) return;
     control.value = selected.id;
+    preview.src = selected.url;
+    preview.alt = selected.altText || selected.originalFilename;
+    preview.hidden = false;
     control.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  upload.addEventListener("click", () => file.click());
+  file.addEventListener("change", async () => {
+    const selected = file.files?.[0];
+    if (!selected) return;
+    upload.disabled = true;
+    try {
+      const alt = window.prompt("请输入图片英文替代文本", selected.name.replace(/\.[^.]+$/u, ""))?.trim() ?? "";
+      const media = await uploadAdminImage(selected, alt);
+      control.value = media.id;
+      preview.src = media.url;
+      preview.alt = media.altText || media.originalFilename;
+      preview.hidden = false;
+      control.dispatchEvent(new Event("input", { bubbles: true }));
+    } finally { upload.disabled = false; file.value = ""; }
   });
   clear.addEventListener("click", () => {
     control.value = "";
+    preview.hidden = true;
+    preview.removeAttribute("src");
     control.dispatchEvent(new Event("input", { bubbles: true }));
   });
+  group.appendChild(preview);
+  group.appendChild(file);
+  group.appendChild(upload);
   group.appendChild(choose);
   group.appendChild(clear);
 }
