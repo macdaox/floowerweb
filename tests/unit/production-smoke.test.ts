@@ -21,6 +21,9 @@ describe("production smoke configuration", () => {
     expect(wranglerConfig).toContain('binding = "ASSETS"');
     expect(wranglerConfig).toContain('directory = "./dist"');
     expect(wranglerConfig).not.toContain("pages_build_output_dir");
+    expect(wranglerConfig).toContain('database_name = "everstem-production"');
+    expect(wranglerConfig).toContain('database_id = "3bdc89c4-0b94-40b2-8e58-36226ef77cd1"');
+    expect(wranglerConfig).toContain('bucket_name = "everstem-media-production"');
     expect(assetsIgnore).toContain("_worker.js");
     expect(assetsIgnore).toContain("_routes.json");
     expect(Number(packageJson.devDependencies.wrangler.replace(/^[^0-9]*/u, "").split(".")[0])).toBeGreaterThanOrEqual(4);

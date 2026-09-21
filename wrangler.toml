@@ -15,22 +15,22 @@ MEDIA_MAX_BYTES = "10485760"
 
 [[d1_databases]]
 binding = "DB"
+database_name = "everstem-production"
+database_id = "3bdc89c4-0b94-40b2-8e58-36226ef77cd1"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "everstem-media-production"
+
+[[env.preview.d1_databases]]
+binding = "DB"
 database_name = "everstem-preview"
 # Replace after `wrangler d1 create everstem-preview`.
 database_id = "00000000-0000-0000-0000-000000000000"
 
-[[r2_buckets]]
+[[env.preview.r2_buckets]]
 binding = "MEDIA"
 bucket_name = "everstem-media-preview"
 
-[[env.production.d1_databases]]
-binding = "DB"
-database_name = "everstem-production"
-database_id = "3bdc89c4-0b94-40b2-8e58-36226ef77cd1"
-
-[[env.production.r2_buckets]]
-binding = "MEDIA"
-bucket_name = "everstem-media-production"
-
-[env.production.vars]
+[env.preview.vars]
 MEDIA_MAX_BYTES = "10485760"

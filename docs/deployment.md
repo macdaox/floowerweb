@@ -38,15 +38,15 @@ npx wrangler r2 bucket create everstem-media-production
 ```bash
 npm run db:migrate:remote
 npm run db:seed:remote
-npm run db:migrate:remote -- --env production
-npm run db:seed:remote -- --env production
+npm run db:migrate:remote -- --env preview
+npm run db:seed:remote -- --env preview
 ```
 
 在每个环境中创建第一个管理员。该命令会在本地对密码进行哈希处理，不会输出密码。修改 `EVERSTEM_ADMIN_EMAIL` 或 `EVERSTEM_ADMIN_PASSWORD` 后重新执行命令，会同步更新初始管理员，而不会创建第二个初始管理员：
 
 ```bash
 npm run admin:create -- --remote
-npm run admin:create -- --remote --env production
+npm run admin:create -- --remote --env preview
 ```
 
 输入生产环境管理员密码前，务必先确认 Wrangler 当前指向的目标数据库。
@@ -57,10 +57,10 @@ npm run admin:create -- --remote --env production
 
 - 生产分支：`main`
 - 构建命令：`npm run build`
-- 部署命令：`npx wrangler deploy --env production`
+- 部署命令：`npx wrangler deploy`
 - Node 版本：`22`
 
-不需要在网页端填写“构建输出目录”；`wrangler.toml` 已声明 Worker 入口和静态资源目录。部署前必须先创建 D1/R2，并把真实的 D1 UUID 写入 `wrangler.toml`。`--env production` 会选择 `everstem-production` 和 `everstem-media-production`，不要省略，否则 Wrangler 会使用预览资源。
+不需要在网页端填写“构建输出目录”；`wrangler.toml` 已声明 Worker 入口和静态资源目录。顶层配置直接绑定 `everstem-production` 和 `everstem-media-production`，所以 Cloudflare 网页端的默认部署命令可以直接使用。预览资源位于 `preview` 环境，需要时使用 `--env preview`。
 
 在 Cloudflare 应用的变量和密钥中设置以下值：
 
@@ -97,8 +97,8 @@ npm run test:e2e
 每次数据库迁移或重大内容发布前，导出每个 D1 数据库：
 
 ```bash
-npx wrangler d1 export DB --remote --output backup-preview.sql
-npx wrangler d1 export DB --remote --env production --output backup-production.sql
+npx wrangler d1 export DB --remote --output backup-production.sql
+npx wrangler d1 export DB --remote --env preview --output backup-preview.sql
 ```
 
 将导出文件保存在 Git 仓库之外的加密存储中。请根据你的数据保留策略，在 Cloudflare 中配置 R2 对象版本控制或定时复制。
