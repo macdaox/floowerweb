@@ -20,8 +20,8 @@ describe("public site origin", () => {
     expect(() => resolvePublicSiteOrigin(configured, { allowLocalDefault: false })).toThrow(/PUBLIC_SITE_URL/);
   });
 
-  it("fails closed without a production origin and uses a documented loopback origin only in local development", () => {
-    expect(() => resolvePublicSiteOrigin(undefined, { allowLocalDefault: false })).toThrow(/PUBLIC_SITE_URL/);
+  it("uses the deployed Worker origin when runtime configuration is unavailable and loopback during local development", () => {
+    expect(resolvePublicSiteOrigin(undefined, { allowLocalDefault: false })).toBe("https://floowerweb.zhaomeili1016.workers.dev");
     expect(resolvePublicSiteOrigin(undefined, { allowLocalDefault: true })).toBe("http://127.0.0.1:4321");
   });
 });

@@ -69,7 +69,7 @@ npm run admin:create -- --remote --env preview
 - 变量 `MEDIA_MAX_BYTES`：如果不打算修改上传限制，设为 `10485760`。
 - 可选变量 `PUBLIC_IMAGE_RESIZING_ORIGIN`：仅在某个 HTTPS 源站已启用 Cloudflare Image Resizing，并且该源站的 `/media/*` 能够访问本应用时设置。
 
-除本地 Astro 开发环境外，`PUBLIC_SITE_URL` 是必填项。规范链接、Open Graph URL、JSON-LD、`robots.txt` 和站点地图只使用该配置值，绝不信任请求中的 Host 请求头。如果生产环境中缺少该变量或配置无效，系统会为了安全直接拒绝运行相关功能。
+规范链接、Open Graph URL、JSON-LD、`robots.txt` 和站点地图优先使用 `PUBLIC_SITE_URL`，绝不信任请求中的 Host 请求头。运行时变量缺失时，系统会回退到代码中固定的正式 `workers.dev` 地址；配置无效时仍会拒绝运行相关功能。
 
 ## 4. 域名与图片
 

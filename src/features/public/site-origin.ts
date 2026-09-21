@@ -1,4 +1,5 @@
 export const LOCAL_PUBLIC_SITE_ORIGIN = "http://127.0.0.1:4321";
+export const PRODUCTION_PUBLIC_SITE_ORIGIN = "https://floowerweb.zhaomeili1016.workers.dev";
 
 export function resolvePublicSiteOrigin(
   configured: string | undefined,
@@ -7,7 +8,7 @@ export function resolvePublicSiteOrigin(
   const value = configured?.trim();
   if (!value) {
     if (allowLocalDefault) return LOCAL_PUBLIC_SITE_ORIGIN;
-    throw new Error("PUBLIC_SITE_URL must be configured for non-development environments.");
+    return PRODUCTION_PUBLIC_SITE_ORIGIN;
   }
 
   let url: URL;
