@@ -38,10 +38,12 @@ migrations_dir = "${resolve(workspace, "migrations")}"\n`);
 
     expect(output).not.toContain(password);
     expect(users).toEqual([{ email: "admin@example.com", password_hash: expect.not.stringContaining(password), role: "admin", is_active: 1 }]);
+    const originalHash = String(users[0]?.password_hash);
     expect(() => runNpm(["run", "admin:create", "--", "--config", configPath, "--database", "DB"], {
       EVERSTEM_ADMIN_EMAIL: "admin@example.com",
-      EVERSTEM_ADMIN_PASSWORD: password,
-    })).toThrow(/administrator with that email already exists/i);
+      EVERSTEM_ADMIN_PASSWORD: "a different local-only admin passphrase",
+    })).not.toThrow();
+    expect(query("SELECT password_hash FROM users WHERE email = 'admin@example.com'")[0]?.password_hash).not.toBe(originalHash);
     expect(() => runNpm(["run", "admin:create", "--", "--config", configPath, "--database", "DB"], {
       EVERSTEM_ADMIN_EMAIL: "another-admin@example.com",
       EVERSTEM_ADMIN_PASSWORD: password,

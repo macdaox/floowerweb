@@ -42,7 +42,7 @@ npm run db:migrate:remote -- --env production
 npm run db:seed:remote -- --env production
 ```
 
-在每个环境中创建第一个管理员。该命令会在本地对密码进行哈希处理，不会输出密码，并且会拒绝重复创建第二个初始管理员：
+在每个环境中创建第一个管理员。该命令会在本地对密码进行哈希处理，不会输出密码。修改同一个 `EVERSTEM_ADMIN_EMAIL` 的密码变量后重新执行命令，会同步更新该管理员密码；命令仍会拒绝创建另一个初始管理员：
 
 ```bash
 npm run admin:create -- --remote

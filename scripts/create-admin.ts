@@ -27,9 +27,20 @@ const id = crypto.randomUUID();
 const username = `admin-${id.slice(0, 8)}`;
 
 try {
-  await writeFile(sqlFile, `INSERT INTO users (id, email, username, display_name, password_hash, role, is_active, created_at, updated_at)
-SELECT ${literal(id)}, ${literal(email)}, ${literal(username)}, 'Administrator', ${literal(await hashPassword(password))}, 'admin', 1, ${literal(now)}, ${literal(now)}
+  const existing = findExistingAdministrator();
+  if (existing && existing.email !== email) {
+    throw new Error("An administrator already exists; use the authenticated user-management workflow instead.");
+  }
+  const passwordHash = await hashPassword(password);
+  if (existing) {
+    await writeFile(sqlFile, `UPDATE users
+SET password_hash = ${literal(passwordHash)}, role = 'admin', is_active = 1, updated_at = ${literal(now)}
+WHERE email = ${literal(email)};`);
+  } else {
+    await writeFile(sqlFile, `INSERT INTO users (id, email, username, display_name, password_hash, role, is_active, created_at, updated_at)
+SELECT ${literal(id)}, ${literal(email)}, ${literal(username)}, 'Administrator', ${literal(passwordHash)}, 'admin', 1, ${literal(now)}, ${literal(now)}
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = ${literal(email)} OR role = 'admin');`);
+  }
   const command = ["wrangler", "d1", "execute", database, ...targetArguments];
   if (configPath) command.push("--config", configPath);
   command.push("--file", sqlFile);
@@ -38,12 +49,10 @@ WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = ${literal(email)} OR role = 
     if ((result.stderr ?? "").includes("UNIQUE constraint failed: users.email")) throw new Error("An administrator with that email already exists.");
     throw new Error("Unable to create the administrator.");
   }
-  if (!createdAdministrator()) {
-    const existing = findExistingAdministrator();
-    if (existing?.email === email) throw new Error("An administrator with that email already exists.");
+  if (!existing && !createdAdministrator()) {
     throw new Error("An administrator already exists; use the authenticated user-management workflow instead.");
   }
-  console.log(`Created administrator ${email}.`);
+  console.log(`${existing ? "Updated" : "Created"} administrator ${email}.`);
 } finally {
   await rm(directory, { force: true, recursive: true });
 }

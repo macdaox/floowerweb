@@ -31,3 +31,4 @@ The detailed Cloudflare Pages, D1, R2, GitHub, backup, rollback, and credential-
 
 No production IDs or credentials are committed. Replace the clearly marked D1 placeholders in `wrangler.toml` and configure secrets in Cloudflare before deployment.
 Set `EVERSTEM_ADMIN_EMAIL` and `EVERSTEM_ADMIN_PASSWORD` only for the administrator-creation command, and `E2E_ADMIN_PASSWORD` only for browser tests. Use values from your password manager and clear them from the shell afterwards.
+Running `npm run admin:create` again with the same administrator email synchronizes a changed password into D1; it will not create a second initial administrator.
