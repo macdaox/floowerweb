@@ -1,6 +1,6 @@
 # Cloudflare 部署说明
 
-本项目部署到 Cloudflare Pages，并使用 D1（`DB`）和 R2（`MEDIA`）。生产环境和预览环境必须使用独立的数据库和存储桶。GitHub 的 `main` 分支用于生产部署，Pull Request 用于创建预览部署。
+本项目通过 Cloudflare Workers Builds 的网页端 GitHub 集成部署，并使用 D1（`DB`）和 R2（`MEDIA`）。Astro 的服务端代码作为 Worker 运行，静态文件由 Workers Assets 提供。生产环境和预览环境必须使用独立的数据库和存储桶。
 
 每次发布前请运行 `npm run test:smoke`。该命令会生成生产构建、准备本地 D1 种子数据、使用本地 D1/R2 绑定启动 `wrangler pages dev ./dist`，并检查构建结果中的关键公开页面和后台登录页面。
 
@@ -51,19 +51,18 @@ npm run admin:create -- --remote --env production
 
 输入生产环境管理员密码前，务必先确认 Wrangler 当前指向的目标数据库。
 
-## 3. 将 GitHub 连接到 Pages
+## 3. 在 Cloudflare 网页端连接 GitHub
 
-在 Cloudflare 控制台中，从该 GitHub 仓库创建 Pages 项目，配置如下：
+在 Cloudflare 控制台的 Workers & Pages 中创建应用并导入 GitHub 仓库，生产环境配置如下：
 
 - 生产分支：`main`
 - 构建命令：`npm run build`
-- 构建输出目录：`dist`
+- 部署命令：`npx wrangler deploy --env production`
 - Node 版本：`22`
-- 预览部署：为 Pull Request 启用
 
-在预览环境的绑定中，将 `DB` 关联到 `everstem-preview`，将 `MEDIA` 关联到 `everstem-media-preview`。在生产环境的绑定中，将 `DB` 关联到 `everstem-production`，将 `MEDIA` 关联到 `everstem-media-production`。
+不需要在网页端填写“构建输出目录”；`wrangler.toml` 已声明 Worker 入口和静态资源目录。部署前必须先创建 D1/R2，并把真实的 D1 UUID 写入 `wrangler.toml`。`--env production` 会选择 `everstem-production` 和 `everstem-media-production`，不要省略，否则 Wrangler 会使用预览资源。
 
-在 Pages 的两个环境中分别设置以下变量：
+在 Cloudflare 应用的变量和密钥中设置以下值：
 
 - 密钥 `SESSION_SECRET`：每个环境使用不同的随机值，至少包含 32 字节随机数据。
 - 变量 `PUBLIC_SITE_URL`：该环境的规范 HTTPS 站点根地址，不得包含路径。
@@ -74,7 +73,7 @@ npm run admin:create -- --remote --env production
 
 ## 4. 域名与图片
 
-在 Pages 中添加生产环境自定义域名，按照 Cloudflare 的指引更新 DNS，然后将 `PUBLIC_SITE_URL` 设为完全一致的 `https://` 站点根地址并重新部署。上传的对象应在 R2 中保持私有，并由应用通过 `/media/*` 路径对外提供；不要将存储桶设置为公开。在后台管理界面中，已被内容引用的图片不能删除。
+在 Worker 中添加生产环境自定义域名，按照 Cloudflare 的指引更新 DNS，然后将 `PUBLIC_SITE_URL` 设为完全一致的 `https://` 站点根地址并重新部署。上传的对象应在 R2 中保持私有，并由应用通过 `/media/*` 路径对外提供；不要将存储桶设置为公开。在后台管理界面中，已被内容引用的图片不能删除。
 
 Image Resizing 是可选功能。如果不启用，R2 中的动态图片会安全地使用原始 URL。项目内置的设计图片已在 `public/assets/responsive/` 目录中提供了对应的响应式版本。
 
@@ -104,6 +103,6 @@ npx wrangler d1 export DB --remote --env production --output backup-production.s
 
 将导出文件保存在 Git 仓库之外的加密存储中。请根据你的数据保留策略，在 Cloudflare 中配置 R2 对象版本控制或定时复制。
 
-如需回滚应用，请在 Pages Deployments 中回滚到上一个已验证的正常版本。不要通过删除数据表或迁移文件来反向撤销 D1 迁移。应当使用已验证的导出备份恢复到一个新的 D1 数据库，更新绑定并完成测试后，再切换流量。
+如需回滚应用，请在 Workers Deployments 中回滚到上一个已验证的正常版本。不要通过删除数据表或迁移文件来反向撤销 D1 迁移。应当使用已验证的导出备份恢复到一个新的 D1 数据库，更新绑定并完成测试后，再切换流量。
 
-在受影响的 Pages 环境中轮换 `SESSION_SECRET` 并重新部署，所有现有的后台会话都会失效。如需更换管理员密码，请使用另一个管理员账号登录后更新该账户。在 Cloudflare 控制台中轮换 API 令牌，同时更新 CI 密钥；不要将它们写入 `.dev.vars`、源码、日志或 GitHub Actions 输出。
+在受影响的 Worker 环境中轮换 `SESSION_SECRET` 并重新部署，所有现有的后台会话都会失效。如需更换管理员密码，请使用另一个管理员账号登录后更新该账户。在 Cloudflare 控制台中轮换 API 令牌，同时更新 CI 密钥；不要将它们写入 `.dev.vars`、源码、日志或 GitHub Actions 输出。

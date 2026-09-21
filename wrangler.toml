@@ -1,7 +1,14 @@
 name = "everstem"
+main = "./dist/_worker.js/index.js"
 compatibility_date = "2026-07-30"
 compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = "./dist"
+
+[assets]
+binding = "ASSETS"
+directory = "./dist"
+
+[observability]
+enabled = true
 
 [vars]
 MEDIA_MAX_BYTES = "10485760"
