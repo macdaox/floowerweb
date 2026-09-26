@@ -1,6 +1,7 @@
 ---
 import ProductCard from "../../components/public/ProductCard.astro";
 import ResponsiveImage from "../../components/public/ResponsiveImage.astro";
+import RichText from "../../components/public/RichText.astro";
 import { selectGalleryImage } from "../../components/public/ProductGallery";
 import { productInquiryFields } from "../../components/public/ProductInquiryForm";
 import { breadcrumbData, productData } from "../../components/public/structured-data";
@@ -45,7 +46,7 @@ const structuredData = product ? [
         <p class="eyebrow"><a href={`/collections/${product.category.slug}`}>{product.category.name}</a></p>
         <h1>{product.name}</h1>
         <p class="product-summary">{product.summary}</p>
-        {product.body && <p>{product.body}</p>}
+        {product.body && <RichText value={product.body} />}
         <dl class="product-specifications"><dt><h2>Specifications</h2></dt>{product.specifications.map((specification) => <div><dt>{specification.label}</dt><dd>{specification.value}</dd></div>)}</dl>
         <form class="product-inquiry-form" action="/api/inquiries" method="post" aria-label={`Inquire about ${product.name}`} data-inquiry-form data-inquiry-type="product" data-source-route={inquiry.sourceRoute}>
           <input type="hidden" name="inquiry_type" value="product" />

@@ -1,6 +1,8 @@
 import { parsePageBlocks, type PageBlock } from "../../features/content/schemas";
+import { isMeaningfulEnglishAltText } from "../../features/media/schemas";
 import { openMediaPicker } from "./MediaPicker";
 import { mountRichTextEditor, type RichTextEditorController } from "./RichTextEditor";
+import { uploadAdminImage } from "./media-upload";
 
 export type PageSectionsEditorController = {
   getValue(): PageBlock[];
@@ -31,7 +33,7 @@ export function mountPageSectionsEditor(root: HTMLElement, options: Options): Pa
   root.classList.add("page-sections-editor");
 
   const controller: PageSectionsEditorController = {
-    getValue: () => structuredClone(blocks),
+    getValue: () => parsePageBlocks(blocks),
     setValue: (value) => { blocks = parsePageBlocks(value); render(); },
     focus: () => root.querySelector<HTMLElement>("input, textarea, select, button")?.focus(),
     destroy: () => { destroyed = true; nestedEditors.forEach((editor) => editor.destroy()); nestedEditors = []; root.replaceChildren(); root.classList.remove("page-sections-editor"); },
@@ -40,8 +42,7 @@ export function mountPageSectionsEditor(root: HTMLElement, options: Options): Pa
   return controller;
 
   function commit(): void {
-    blocks = parsePageBlocks(blocks);
-    options.onChange(structuredClone(blocks));
+    options.onChange(parsePageBlocks(blocks));
   }
 
   function render(): void {
@@ -137,6 +138,39 @@ export function mountPageSectionsEditor(root: HTMLElement, options: Options): Pa
   function imageField(parent: HTMLElement, block: Extract<PageBlock, { type: "hero" | "imageText" }>, optional: boolean): void {
     const preview = document.createElement("p"); preview.textContent = block.image ? `${block.image.alt} · ${block.image.src}` : "尚未选择图片";
     const choose = action("上传或选择图片", "选择区块图片");
+    const upload = action("直接上传", "直接上传区块图片");
+    const file = document.createElement("input");
+    file.type = "file";
+    file.accept = "image/jpeg,image/png,image/webp,image/avif";
+    file.hidden = true;
+    const error = document.createElement("p");
+    error.setAttribute("role", "alert");
+    upload.addEventListener("click", () => file.click());
+    file.addEventListener("change", async () => {
+      const selected = file.files?.[0];
+      if (!selected) return;
+      upload.disabled = true;
+      options.onUploadStateChange?.(true);
+      error.textContent = "";
+      try {
+        const alt = window.prompt("请输入图片英文替代文本", selected.name.replace(/\.[^.]+$/u, ""))?.trim();
+        if (!alt) return;
+        if (!isMeaningfulEnglishAltText(alt)) {
+          error.textContent = "请输入有意义的英文图片描述。";
+          return;
+        }
+        const media = await uploadAdminImage(selected, alt);
+        block.image = { src: media.url, alt: media.altText || alt };
+        commit();
+        render();
+      } catch (cause) {
+        error.textContent = cause instanceof Error ? cause.message : "上传失败，请重试。";
+      } finally {
+        file.value = "";
+        upload.disabled = false;
+        options.onUploadStateChange?.(false);
+      }
+    });
     choose.addEventListener("click", async () => {
       options.onUploadStateChange?.(true);
       try {
@@ -146,7 +180,7 @@ export function mountPageSectionsEditor(root: HTMLElement, options: Options): Pa
         commit(); render();
       } finally { options.onUploadStateChange?.(false); }
     });
-    parent.appendChild(preview); parent.appendChild(choose);
+    parent.appendChild(preview); parent.appendChild(file); parent.appendChild(upload); parent.appendChild(choose); parent.appendChild(error);
     if (optional && block.image) {
       const clear = action("清除图片", "清除区块图片");
       clear.addEventListener("click", () => { block.image = undefined; commit(); render(); });

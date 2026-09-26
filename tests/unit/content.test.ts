@@ -20,4 +20,11 @@ describe("page block validation", () => {
       .toEqual([expect.objectContaining({ image: { src, alt: "White magnolia branch" } })]);
     expect(() => parsePageBlocks([{ type: "hero", title: "Unsafe", image: { src: "/media/../private.jpg", alt: "Private file" } }])).toThrow(/content image/i);
   });
+
+  it("requires English alternative text on R2 images in page rich text", () => {
+    const src = "/media/00000000-0000-4000-8000-000000000321.jpg";
+    expect(() => parsePageBlocks([{ type: "richText", html: `<p>Copy</p><img src="${src}" alt="">` }])).toThrow(/alternative text/i);
+    expect(parsePageBlocks([{ type: "richText", html: `<p>Copy</p><img src="${src}" alt="White magnolia branch">` }]))
+      .toEqual([{ type: "richText", heading: undefined, html: `<p>Copy</p><img src="${src}" alt="White magnolia branch" />` }]);
+  });
 });

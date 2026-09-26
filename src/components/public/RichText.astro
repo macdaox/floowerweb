@@ -1,0 +1,7 @@
+---
+import { legacyTextToRichHtml, normalizeRichText } from "../../features/rich-text/schema";
+interface Props { value: string; class?: string; }
+const { value, class: className } = Astro.props;
+const html = /<\/?[a-z][\s\S]*>/iu.test(value) ? normalizeRichText(value) : legacyTextToRichHtml(value);
+---
+<div class:list={["public-rich-text", className]} set:html={html} />

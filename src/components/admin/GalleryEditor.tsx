@@ -25,6 +25,7 @@ export function initializeGalleryEditor(root: HTMLElement, options: { entity: Ga
   add.type = "button";
   add.className = "admin-secondary-button";
   add.textContent = "选择已有图片";
+  add.setAttribute("aria-label", "从媒体库添加");
   const upload = document.createElement("button");
   upload.type = "button";
   upload.className = "admin-secondary-button";

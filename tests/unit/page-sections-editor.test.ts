@@ -6,6 +6,13 @@ import { parsePageBlocks } from "../../src/features/content/schemas";
 afterEach(() => { document.body.replaceChildren(); vi.restoreAllMocks(); });
 
 describe("PageSectionsEditor", () => {
+  it("offers direct image upload inside a page section", () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    const editor = mountPageSectionsEditor(root, { value: [{ type: "hero", title: "Home" }], onChange: vi.fn() });
+    expect(root.querySelector('button[aria-label="直接上传区块图片"]')).not.toBeNull();
+    editor.destroy();
+  });
   it("renders supported blocks as Chinese forms and preserves their data", () => {
     const value = [
       { type: "hero", title: "About" },
@@ -35,6 +42,20 @@ describe("PageSectionsEditor", () => {
     root.querySelectorAll<HTMLButtonElement>('[aria-label="上移区块"]')[1]?.click();
     expect(editor.getValue().map((block) => "title" in block ? block.title : "")).toEqual(["Second", "First"]);
     expect(onChange).toHaveBeenCalled();
+    editor.destroy();
+  });
+
+  it("keeps editing the same block after a prior field change", () => {
+    const root = document.createElement("div");
+    const editor = mountPageSectionsEditor(root, { value: [{ type: "hero", title: "Original" }], onChange: vi.fn() });
+    const inputs = root.querySelectorAll<HTMLInputElement>(".page-sections-editor__card input");
+    inputs[1].value = "Updated";
+    inputs[1].dispatchEvent(new Event("input"));
+    const body = root.querySelector<HTMLTextAreaElement>(".page-sections-editor__card textarea");
+    if (!body) throw new Error("Missing hero body field");
+    body.value = "Later change";
+    body.dispatchEvent(new Event("input"));
+    expect(editor.getValue()[0]).toMatchObject({ title: "Updated", body: "Later change" });
     editor.destroy();
   });
 

@@ -22,6 +22,11 @@ describe("rich text contract", () => {
       .toContain('alt="Green preserved fern"');
   });
 
+  it("drops image nodes with external or unsafe source paths", () => {
+    expect(normalizeRichText('<p>Safe</p><img src="https://tracker.example/collect" alt="Tracker"><img src="/media/../private.jpg" alt="Private"><img src="/assets/../private.jpg" alt="Private"><img src="/assets//private.jpg" alt="Private">'))
+      .toBe("<p>Safe</p>");
+  });
+
   it("forces safe attributes on external links", () => {
     expect(normalizeRichText('<p><a href="https://example.com">Example</a></p>'))
       .toBe('<p><a href="https://example.com" target="_blank" rel="noopener noreferrer">Example</a></p>');

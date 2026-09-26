@@ -32,6 +32,12 @@ export function normalizeRichText(input: string): string {
       },
     },
     exclusiveFilter: (frame) => {
+      if (frame.tag === "img") {
+        const src = frame.attribs.src ?? "";
+        const safeAsset = /^\/assets\/[a-zA-Z0-9._/-]+$/u.test(src)
+          && !src.includes("..") && !src.includes("//") && !src.endsWith("/");
+        return !mediaObjectKeyFromPublicUrl(src) && !safeAsset;
+      }
       if (!["p", "h2", "h3", "blockquote", "figure", "figcaption"].includes(frame.tag)) return false;
       return frame.text.trim().length === 0 && !/<(?:img|br)\b/iu.test(frame.mediaChildren.join(""));
     },
@@ -64,6 +70,18 @@ export function richTextMediaObjectKeys(html: string): string[] {
     if (key) keys.add(key);
   }
   return [...keys];
+}
+
+export function richTextMediaImages(html: string): Array<{ objectKey: string; alt: string }> {
+  const normalized = normalizeRichText(html);
+  const images: Array<{ objectKey: string; alt: string }> = [];
+  for (const match of normalized.matchAll(/<img\b[^>]*>/giu)) {
+    const tag = match[0];
+    const src = /\bsrc="([^"]*)"/iu.exec(tag)?.[1] ?? "";
+    const objectKey = mediaObjectKeyFromPublicUrl(src);
+    if (objectKey) images.push({ objectKey, alt: /\balt="([^"]*)"/iu.exec(tag)?.[1] ?? "" });
+  }
+  return images;
 }
 
 export function isEmptyRichText(html: string): boolean {

@@ -9,7 +9,7 @@
     "test": "vitest",
     "test:e2e": "playwright test",
     "test:smoke": "npm run build && npm run db:migrate:local && npm run db:seed:local && playwright test tests/e2e/smoke.spec.ts --config playwright.smoke.config.ts",
-    "db:migrate:local": "wrangler d1 migrations apply everstem-preview --local",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "db:seed:local": "tsx scripts/seed-runner.ts --local",
     "db:seed:remote": "tsx scripts/seed-runner.ts --remote",

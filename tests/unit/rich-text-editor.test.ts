@@ -11,6 +11,7 @@ describe("RichTextEditor", () => {
     document.body.appendChild(root);
     const controller = mountRichTextEditor(root, { value: "First\n\nSecond", onChange: vi.fn() });
     expect(root.querySelector('[aria-label="加粗"]')).not.toBeNull();
+    expect(root.querySelector('[aria-label="普通段落"]')).not.toBeNull();
     expect(root.querySelector('[aria-label="无序列表"]')).not.toBeNull();
     expect(controller.getHtml()).toBe("<p>First</p><p>Second</p>");
     controller.destroy();

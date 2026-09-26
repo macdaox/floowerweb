@@ -31,7 +31,7 @@ export default async function globalSetup(): Promise<void> {
 function seedFixtureMedia(): void {
   for (const suffix of ["102", "103", "104", "105"]) {
     const key = `00000000-0000-4000-8000-000000000${suffix}.jpg`;
-    exec("r2", "object", "put", `everstem-media-preview/${key}`, "--local", "--file", "public/assets/everstem-magnolia-v2.jpg", "--content-type", "image/jpeg");
+    exec("r2", "object", "put", `everstem-media-production/${key}`, "--local", "--file", "public/assets/everstem-magnolia-v2.jpg", "--content-type", "image/jpeg");
   }
 }
 

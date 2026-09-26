@@ -5,7 +5,7 @@ import { HttpError } from "../../lib/http/errors";
 import { pageInsertStatement, pageUpdateStatement, type PageWriteStatement } from "./write";
 import { isMeaningfulEnglishAltText } from "../media/schemas";
 import { pageMediaObjectKeys } from "./schemas";
-import { legacyTextToRichHtml, normalizeRichText, richTextMediaObjectKeys } from "../rich-text/schema";
+import { legacyTextToRichHtml, normalizeRichText, richTextMediaImages } from "../rich-text/schema";
 
 export type AdminEntity = PreviewKind;
 export type AdminStatus = "draft" | "published" | "archived";
@@ -299,13 +299,15 @@ async function validateGalleryMedia(db: D1Database, entity: AdminEntity, content
 
 async function validateRichTextMedia(db: D1Database, value: unknown, publishing: boolean): Promise<void> {
   if (typeof value !== "string") return;
-  const keys = richTextMediaObjectKeys(value);
+  const images = richTextMediaImages(value);
+  const keys = [...new Set(images.map((image) => image.objectKey))];
   if (!keys.length) return;
   const placeholders = keys.map(() => "?").join(", ");
   const rows = await db.prepare(`SELECT object_key, alt_text FROM media WHERE is_deleted = 0 AND object_key IN (${placeholders})`)
     .bind(...keys).all<{ object_key: string; alt_text: string | null }>();
   const allActive = rows.results.length === keys.length;
-  const allDescribed = rows.results.every((row) => isMeaningfulEnglishAltText(row.alt_text));
+  const allDescribed = rows.results.every((row) => isMeaningfulEnglishAltText(row.alt_text))
+    && images.every((image) => isMeaningfulEnglishAltText(image.alt));
   if (allActive && (!publishing || allDescribed)) return;
   const message = publishing
     ? "Every inline image must be active and have meaningful English alternative text."

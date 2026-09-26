@@ -57,7 +57,7 @@ export function mountRichTextEditor(root: HTMLElement, options: Options): RichTe
     content: initial,
     editorProps: {
       transformPastedHTML: (html) => normalizeRichText(html),
-      attributes: { class: "rich-text-editor__content", "aria-label": "正文编辑器" },
+      attributes: { class: "rich-text-editor__content", "aria-label": "正文" },
     },
     onUpdate: ({ editor: current }) => options.onChange(normalizeRichText(current.getHTML())),
   });
@@ -75,7 +75,7 @@ export function mountRichTextEditor(root: HTMLElement, options: Options): RichTe
   });
 
   const buttons: Array<[string, string, () => void]> = [
-    ["正文", "正文", () => { editor.chain().focus().setParagraph().run(); }],
+    ["普通段落", "正文", () => { editor.chain().focus().setParagraph().run(); }],
     ["二级标题", "H2", () => { editor.chain().focus().toggleHeading({ level: 2 }).run(); }],
     ["三级标题", "H3", () => { editor.chain().focus().toggleHeading({ level: 3 }).run(); }],
     ["加粗", "B", () => { editor.chain().focus().toggleBold().run(); }],

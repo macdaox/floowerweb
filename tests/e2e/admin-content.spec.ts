@@ -1,5 +1,36 @@
 import { expect, test, type Page } from "@playwright/test";
 
+test("an editor uploads a cover and publishes formatted article copy without opening media management", async ({ page }) => {
+  await page.setExtraHTTPHeaders({ "cf-connecting-ip": "e2e-integrated-editor" });
+  await loginAsEditor(page);
+  await page.goto("/admin/journal");
+  await page.getByRole("button", { name: "新建文章" }).click();
+  await page.getByLabel("标题", { exact: true }).fill("E2E Formatted Stem");
+  await page.getByLabel("Slug").fill("e2e-formatted-stem");
+  await page.getByLabel("作者").fill("EVERSTEM Studio");
+  await page.getByLabel("摘要").fill("A formatted story with a direct-upload cover.");
+  const body = page.getByLabel("正文");
+  await body.fill("A graceful preserved stem.");
+  await body.press("ControlOrMeta+A");
+  await page.getByRole("button", { name: "加粗" }).click();
+  await expect(page.locator('input[name="body"]')).toHaveValue(/<strong>A graceful preserved stem\.<\/strong>/);
+
+  page.once("dialog", async (dialog) => { await dialog.accept("White magnolia stem in a vase"); });
+  const fileChooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "直接上传" }).click();
+  await (await fileChooser).setFiles("public/assets/everstem-magnolia-v2.jpg");
+  await expect(page.locator('input[name="coverMediaId"]')).not.toHaveValue("");
+  await page.getByRole("button", { name: "保存草稿" }).click();
+  await expect(page.locator("[data-editor-status]")).toContainText("已保存");
+  await page.getByRole("button", { name: "发布" }).click();
+  await expect(page.locator("[data-editor-status]")).toContainText("已发布");
+  await expect(page).not.toHaveURL(/\/admin\/media/);
+
+  await page.goto("/journal/e2e-formatted-stem");
+  await expect(page.locator(".public-rich-text strong")).toHaveText("A graceful preserved stem.");
+  await expect(page.getByAltText("White magnolia stem in a vase")).toBeVisible();
+});
+
 test("an editor creates, previews, publishes, and archives content with dirty-form protection", async ({ page }) => {
   await loginAsEditor(page);
 
@@ -119,9 +150,19 @@ test("spaces, articles, and pages support lifecycle actions and surface a real o
   await page.goto("/admin/pages");
   await page.getByRole("button", { name: "新建页面" }).click();
   await page.getByLabel("页面键").fill("e2e-studio-page");
-  await page.getByLabel("区块 JSON").fill('[{"type":"hero","title":"E2E Studio","body":"A modular browser page."}]');
-  await chooseMedia(page, "从媒体库添加图片区块", "E2E Bulk Media 103.jpg");
-  await expect(page.getByLabel("区块 JSON")).toHaveValue(/\/media\/00000000-0000-4000-8000-000000000103\.jpg/);
+  await page.getByLabel("标题", { exact: true }).fill("E2E Studio");
+  await page.getByLabel("正文", { exact: true }).fill("A modular browser page.");
+  page.once("dialog", async (dialog) => { await dialog.accept("Magnolia branch on studio table"); });
+  const sectionFile = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "直接上传区块图片" }).click();
+  await (await sectionFile).setFiles("public/assets/everstem-magnolia-v2.jpg");
+  await expect(page.locator('input[name="sections"]')).toHaveValue(/Magnolia branch on studio table/);
+  await page.getByRole("button", { name: "选择区块图片" }).click();
+  const pagePicker = page.getByRole("dialog", { name: "选择媒体" });
+  await pagePicker.getByRole("searchbox").fill("E2E Bulk Media 103.jpg");
+  await pagePicker.getByRole("button", { name: "搜索" }).click();
+  await pagePicker.getByRole("button", { name: "选择 E2E Bulk Media 103.jpg" }).click();
+  await expect(page.locator('input[name="sections"]')).toHaveValue(/\/media\/00000000-0000-4000-8000-000000000103\.jpg/);
   await page.getByLabel("SEO 标题").fill("E2E Studio");
   await page.getByLabel("SEO 描述").fill("A browser-created modular page.");
   await saveEditPublishArchive(page, "SEO 标题", "E2E Studio Page", "E2E Studio");

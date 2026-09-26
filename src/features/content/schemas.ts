@@ -1,5 +1,5 @@
 import { isMeaningfulEnglishAltText, mediaObjectKeyFromPublicUrl, publicMediaUrl } from "../media/schemas";
-import { normalizeRichText, richTextMediaObjectKeys } from "../rich-text/schema";
+import { normalizeRichText, richTextMediaImages, richTextMediaObjectKeys } from "../rich-text/schema";
 
 export interface ContentImage {
   src: string;
@@ -109,7 +109,11 @@ function parsePageBlock(value: unknown): PageBlock {
   switch (value.type) {
     case "hero": return { type: "hero", title: requiredText(value.title, "hero title"), eyebrow: optionalText(value.eyebrow), body: optionalText(value.body), image: optionalImage(value.image) };
     case "richText": {
-      if (typeof value.html === "string") return { type: "richText", heading: optionalText(value.heading), html: normalizeRichText(value.html) };
+      if (typeof value.html === "string") {
+        const html = normalizeRichText(value.html);
+        if (richTextMediaImages(html).some((image) => !isMeaningfulEnglishAltText(image.alt))) throw new Error("Invalid rich text image alternative text");
+        return { type: "richText", heading: optionalText(value.heading), html };
+      }
       return { type: "richText", heading: optionalText(value.heading), document: parseRichText(value.document) };
     }
     case "imageText": return { type: "imageText", eyebrow: optionalText(value.eyebrow), title: requiredText(value.title, "image text title"), body: requiredText(value.body, "image text body"), image: parseImage(value.image), reversed: value.reversed === true };

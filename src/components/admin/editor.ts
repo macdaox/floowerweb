@@ -116,9 +116,15 @@ export function initializeContentEditor(root: HTMLElement, options?: EditorOptio
     if (field.kind === "pageSections") {
       const host = document.createElement("div");
       group.appendChild(host);
-      pageMounts.push({ host, control: control as HTMLInputElement, value: record[field.name] ?? [{ type: "hero", title: "" }] });
+      pageMounts.push({ host, control: control as HTMLInputElement, value: record[field.name] ?? [{ type: "hero", title: "New page" }] });
     }
-    if (field.kind === "media") addMediaPickerControls(group, control as HTMLInputElement);
+    if (field.kind === "media") addMediaPickerControls(group, control as HTMLInputElement, {
+      onUploadStateChange: (uploading) => {
+        pendingUploads = Math.max(0, pendingUploads + (uploading ? 1 : -1));
+        setBusy(submitting || pendingUploads > 0);
+      },
+      onError: (error) => showError(error),
+    });
     group.appendChild(error);
     fieldset.appendChild(group);
     fieldErrors.set(field.name, error);
@@ -347,12 +353,17 @@ function createControl(field: Field): HTMLInputElement | HTMLTextAreaElement | H
   return control;
 }
 
-function addMediaPickerControls(group: HTMLElement, control: HTMLInputElement): void {
+function addMediaPickerControls(
+  group: HTMLElement,
+  control: HTMLInputElement,
+  options: { onUploadStateChange(uploading: boolean): void; onError(error: unknown): void },
+): void {
   const preview = document.createElement("img");
   preview.dataset.coverPreview = "";
   preview.hidden = true;
   preview.alt = "当前封面预览";
   const choose = button("选择已有图片", "admin-secondary-button");
+  choose.setAttribute("aria-label", "从媒体库选择封面");
   const upload = button("直接上传", "admin-secondary-button");
   const file = document.createElement("input");
   file.type = "file";
@@ -373,15 +384,23 @@ function addMediaPickerControls(group: HTMLElement, control: HTMLInputElement): 
     const selected = file.files?.[0];
     if (!selected) return;
     upload.disabled = true;
+    options.onUploadStateChange(true);
     try {
       const alt = window.prompt("请输入图片英文替代文本", selected.name.replace(/\.[^.]+$/u, ""))?.trim() ?? "";
+      if (!alt) return;
       const media = await uploadAdminImage(selected, alt);
       control.value = media.id;
       preview.src = media.url;
       preview.alt = media.altText || media.originalFilename;
       preview.hidden = false;
       control.dispatchEvent(new Event("input", { bubbles: true }));
-    } finally { upload.disabled = false; file.value = ""; }
+    } catch (error) {
+      options.onError(error);
+    } finally {
+      upload.disabled = false;
+      file.value = "";
+      options.onUploadStateChange(false);
+    }
   });
   clear.addEventListener("click", () => {
     control.value = "";
@@ -406,7 +425,7 @@ export function appendPageMediaBlock(sections: unknown, media: MediaItem): unkno
 
 function setValue(control: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement, name: string, value: unknown): void {
   if (name === "specifications") control.value = JSON.stringify(value ?? {}, null, 2);
-  else if (name === "sections") control.value = JSON.stringify(value ?? [{ type: "hero", title: "" }], null, 2);
+  else if (name === "sections") control.value = JSON.stringify(value ?? [{ type: "hero", title: "New page" }], null, 2);
   else if (value !== undefined && value !== null) control.value = String(value);
 }
 
