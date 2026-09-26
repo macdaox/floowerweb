@@ -31,9 +31,9 @@ describe("R2 media management", () => {
     });
     database = await miniflare.getD1Database("DB") as unknown as D1Database;
     bucket = await miniflare.getR2Bucket("MEDIA") as unknown as R2Bucket;
-    for (const name of ["0001_initial.sql", "0002_schema_normalization.sql", "0003_rate_limits.sql", "0004_submission_idempotency.sql", "0005_submission_idempotency_ledger.sql", "0006_active_media_references.sql"]) {
+    for (const name of ["0001_initial.sql", "0002_schema_normalization.sql", "0003_rate_limits.sql", "0004_submission_idempotency.sql", "0005_submission_idempotency_ledger.sql", "0006_active_media_references.sql", "0007_page_media_references.sql", "0008_rich_text_media_references.sql"]) {
       const source = await readFile(resolve(workspace, "migrations", name), "utf8");
-      if (name === "0006_active_media_references.sql") await applyTriggerMigration(database, source);
+      if (name.includes("media_references.sql")) await applyTriggerMigration(database, source);
       else await applyMigration(database, source);
     }
     await seedContent(database);
@@ -240,6 +240,27 @@ describe("R2 media management", () => {
     expect(blocked.status).toBe(409);
     await expect(blocked.json()).resolves.toMatchObject({ error: { code: "media_referenced" } });
     expect(await bucket.head(referenced.objectKey)).not.toBeNull();
+  });
+
+  it("protects media referenced only in managed-page rich text HTML", async () => {
+    const referenced = await uploadMedia(env(), file(jpegBytes, "page-inline.jpg", "image/jpeg"), { altText: "Page magnolia detail", createdByUserId: "editor-1" });
+    const sections = JSON.stringify([{ type: "richText", html: `<p><img src="/media/${referenced.objectKey}" alt="Page magnolia detail"></p>` }]);
+    await database.prepare(`INSERT INTO pages (id, page_key, locale, sections_json, status, created_at, updated_at)
+      VALUES ('page-inline', 'inline-page', 'en', ?, 'draft', ?, ?)`)
+      .bind(sections, "2026-09-19T08:00:00.000Z", "2026-09-19T08:00:00.000Z").run();
+    const blocked = await deleteRoute(routeContext(deleteRequest(referenced.id), "admin", {}, referenced.id) as never);
+    expect(blocked.status).toBe(409);
+    expect(await bucket.head(referenced.objectKey)).not.toBeNull();
+  });
+
+  it("rejects rich-text writes after media has been deleted", async () => {
+    const referenced = await uploadMedia(env(), file(jpegBytes, "raced.jpg", "image/jpeg"), { altText: "Racing branch", createdByUserId: "editor-1" });
+    await deleteMedia(env(), referenced.id, "admin-1");
+    const html = `<p><img src="/media/${referenced.objectKey}" alt="Racing branch"></p>`;
+    await expect(database.prepare("UPDATE products SET body = ? WHERE id = 'product-1'").bind(html).run()).rejects.toThrow(/active media required/iu);
+    await expect(database.prepare(`INSERT INTO pages (id, page_key, locale, sections_json, status, created_at, updated_at)
+      VALUES ('page-raced', 'raced-page', 'en', ?, 'draft', ?, ?)`)
+      .bind(JSON.stringify([{ type: "richText", html }]), "2026-09-19T08:00:00.000Z", "2026-09-19T08:00:00.000Z").run()).rejects.toThrow(/active media required/iu);
   });
 
   it("protects media referenced only inside rich text bodies", async () => {

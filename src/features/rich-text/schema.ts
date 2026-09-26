@@ -39,7 +39,7 @@ export function normalizeRichText(input: string): string {
         return !mediaObjectKeyFromPublicUrl(src) && !safeAsset;
       }
       if (!["p", "h2", "h3", "blockquote", "figure", "figcaption"].includes(frame.tag)) return false;
-      return frame.text.trim().length === 0 && !/<(?:img|br)\b/iu.test(frame.mediaChildren.join(""));
+      return frame.text.trim().length === 0 && !frame.mediaChildren.some((tag) => tag === "img" || tag === "br");
     },
   }).trim();
 

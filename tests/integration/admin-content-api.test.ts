@@ -21,9 +21,9 @@ describe("admin content API", () => {
   beforeEach(async () => {
     miniflare = new Miniflare({ modules: true, script: "export default { fetch() { return new Response('ok'); } }", d1Databases: ["DB"] });
     database = await miniflare.getD1Database("DB") as unknown as D1Database;
-    for (const name of ["0001_initial.sql", "0002_schema_normalization.sql", "0003_rate_limits.sql", "0004_submission_idempotency.sql", "0005_submission_idempotency_ledger.sql", "0006_active_media_references.sql"]) {
+    for (const name of ["0001_initial.sql", "0002_schema_normalization.sql", "0003_rate_limits.sql", "0004_submission_idempotency.sql", "0005_submission_idempotency_ledger.sql", "0006_active_media_references.sql", "0007_page_media_references.sql", "0008_rich_text_media_references.sql"]) {
       const source = await readFile(resolve(workspace, "migrations", name), "utf8");
-      if (name === "0006_active_media_references.sql") await applyTriggerMigration(database, source);
+      if (name.includes("media_references.sql")) await applyTriggerMigration(database, source);
       else await applyMigration(database, source);
     }
     await seedActorsAndCategory(database);
@@ -323,6 +323,33 @@ describe("admin content API", () => {
     const created = await create(pageRoute, "editor", data);
     expect(created.status).toBe(201);
     await expect(created.json()).resolves.toMatchObject({ data: { sections: data.sections } });
+  });
+
+  it("rejects an inline-media save when deletion wins after preflight", async () => {
+    const mediaId = "00000000-0000-4000-8000-000000000812";
+    await insertMedia(mediaId, "White magnolia branch", false);
+    const target = database;
+    let deleted = false;
+    database = new Proxy(target, {
+      get(object, property) {
+        if (property === "batch") return async (statements: D1PreparedStatement[]) => {
+          if (!deleted) {
+            deleted = true;
+            await target.prepare("UPDATE media SET is_deleted = 1 WHERE id = ?").bind(mediaId).run();
+          }
+          return target.batch(statements);
+        };
+        const value = Reflect.get(object, property);
+        return typeof value === "function" ? value.bind(object) : value;
+      },
+    }) as D1Database;
+    const response = await create(articleRoute, "editor", {
+      title: "Racing article", slug: "racing-article", summary: "A complete racing summary.",
+      body: `<p><img src="/media/${mediaId}.jpg" alt="White magnolia branch"></p>`,
+    });
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: "invalid_media" } });
+    await expect(target.prepare("SELECT COUNT(*) AS total FROM articles WHERE slug = 'racing-article'").first()).resolves.toEqual({ total: 0 });
   });
 
   function locals(role: Role) {

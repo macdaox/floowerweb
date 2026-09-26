@@ -62,6 +62,7 @@ export async function findMediaReferences(db: D1Database, id: string): Promise<s
     ["space body", "SELECT COUNT(*) AS count FROM spaces WHERE body LIKE '%' || ? || '%'", `/media/${encodeURIComponent(media.object_key)}`],
     ["article body", "SELECT COUNT(*) AS count FROM articles WHERE body LIKE '%' || ? || '%'", `/media/${encodeURIComponent(media.object_key)}`],
     ["page section", "SELECT COUNT(DISTINCT pages.id) AS count FROM pages, json_tree(pages.sections_json) AS node WHERE node.key = 'src' AND node.value = ?", `/media/${encodeURIComponent(media.object_key)}`],
+    ["page rich text", "SELECT COUNT(DISTINCT pages.id) AS count FROM pages, json_tree(pages.sections_json) AS node WHERE node.key = 'html' AND instr(CAST(node.value AS TEXT), ?) > 0", `/media/${encodeURIComponent(media.object_key)}`],
   ] as const;
   const results = await db.batch(checks.map(([, sql, value]) => db.prepare(sql).bind(value)));
   return checks.filter((_, index) => Number((results[index].results?.[0] as { count?: number | string } | undefined)?.count ?? 0) > 0).map(([label]) => label);
@@ -80,14 +81,24 @@ export async function markMediaDeleted(db: D1Database, id: string, timestamp: st
       AND NOT EXISTS (SELECT 1 FROM spaces WHERE body LIKE '%' || '/media/' || (SELECT object_key FROM media WHERE id = ?) || '%')
       AND NOT EXISTS (SELECT 1 FROM articles WHERE body LIKE '%' || '/media/' || (SELECT object_key FROM media WHERE id = ?) || '%')
       AND NOT EXISTS (SELECT 1 FROM pages, json_tree(pages.sections_json) AS node
-        WHERE node.key = 'src' AND node.value = '/media/' || (SELECT object_key FROM media WHERE id = ?))`)
-    .bind(timestamp, timestamp, id, id, id, id, id, id, id, id, id, id, id);
+        WHERE node.key = 'src' AND node.value = '/media/' || (SELECT object_key FROM media WHERE id = ?))
+      AND NOT EXISTS (SELECT 1 FROM pages, json_tree(pages.sections_json) AS node
+        WHERE node.key = 'html' AND instr(CAST(node.value AS TEXT), '/media/' || (SELECT object_key FROM media WHERE id = ?)) > 0)`)
+    .bind(timestamp, timestamp, id, id, id, id, id, id, id, id, id, id, id, id);
   const statements = actorUserId ? [
     mutation,
     db.prepare("INSERT INTO audit_logs (id, actor_user_id, action, entity_type, entity_id, context_text, created_at) SELECT ?, ?, 'delete', 'media', ?, NULL, ? WHERE changes() = 1")
       .bind(crypto.randomUUID(), actorUserId, id, timestamp),
   ] : [mutation];
-  const [result] = await db.batch(statements);
+  let result: D1Result<unknown>;
+  try {
+    [result] = await db.batch(statements);
+  } catch (error) {
+    if (/media is referenced/iu.test(error instanceof Error ? error.message : String(error))) {
+      throw new HttpError("media_referenced", "This image is referenced by content and cannot be deleted.", 409, { media: "Remove it from content and galleries first." });
+    }
+    throw error;
+  }
   if (Number(result.meta?.changes ?? 0) !== 1) {
     if ((await findMediaReferences(db, id)).length > 0) throw new HttpError("media_referenced", "This image is referenced by content and cannot be deleted.", 409, { media: "Remove it from content and galleries first." });
     throw new HttpError("not_found", "Media was not found.", 404);

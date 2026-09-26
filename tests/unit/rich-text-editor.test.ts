@@ -63,4 +63,31 @@ describe("RichTextEditor", () => {
     expect(onError).toHaveBeenCalledWith("Upload failed");
     uploader.destroy();
   });
+
+  it("keeps upload errors visible after progress ends", async () => {
+    vi.spyOn(window, "prompt").mockReturnValue("Green preserved fern");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: false, error: { message: "Upload failed" } }), { status: 500 })));
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    const editor = mountRichTextEditor(root, { value: "Existing copy", onChange: vi.fn() });
+    const chooser = root.querySelector<HTMLButtonElement>('[aria-label="插入图片"]');
+    chooser?.click();
+    const input = document.body.querySelector<HTMLInputElement>('input[type="file"]');
+    Object.defineProperty(input, "files", { configurable: true, value: [new File(["fern"], "fern.webp", { type: "image/webp" })] });
+    input?.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(root.querySelector('[role="alert"]')?.textContent).toBe("Upload failed"));
+    expect(editor.getHtml()).toContain("Existing copy");
+    editor.destroy();
+  });
+
+  it("releases pending upload state when destroyed before the request settles", async () => {
+    vi.spyOn(window, "prompt").mockReturnValue("Green preserved fern");
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+    const states: boolean[] = [];
+    const uploader = createInlineImageUpload({ onInsert: vi.fn(), onStateChange: (state) => states.push(state) });
+    void uploader.handleFiles([new File(["fern"], "fern.webp", { type: "image/webp" })]);
+    expect(states).toEqual([true]);
+    uploader.destroy();
+    expect(states).toEqual([true, false]);
+  });
 });

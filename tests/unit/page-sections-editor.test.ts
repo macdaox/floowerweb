@@ -13,6 +13,26 @@ describe("PageSectionsEditor", () => {
     expect(root.querySelector('button[aria-label="直接上传区块图片"]')).not.toBeNull();
     editor.destroy();
   });
+
+  it("balances upload state when a block rerender destroys an uploading inline editor", async () => {
+    vi.spyOn(window, "prompt").mockReturnValue("Green preserved fern");
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+    const states: boolean[] = [];
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    const editor = mountPageSectionsEditor(root, {
+      value: [{ type: "richText", html: "<p>Existing copy</p>" }], onChange: vi.fn(),
+      onUploadStateChange: (state) => states.push(state),
+    });
+    root.querySelector<HTMLButtonElement>('[aria-label="插入图片"]')?.click();
+    const input = document.body.querySelector<HTMLInputElement>('input[type="file"]');
+    Object.defineProperty(input, "files", { configurable: true, value: [new File(["fern"], "fern.webp", { type: "image/webp" })] });
+    input?.dispatchEvent(new Event("change"));
+    expect(states).toEqual([true]);
+    root.querySelector<HTMLButtonElement>('[aria-label="添加区块"]')?.click();
+    expect(states).toEqual([true, false]);
+    editor.destroy();
+  });
   it("renders supported blocks as Chinese forms and preserves their data", () => {
     const value = [
       { type: "hero", title: "About" },

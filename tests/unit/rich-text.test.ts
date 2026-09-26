@@ -20,6 +20,10 @@ describe("rich text contract", () => {
   it("preserves supported images and alternative text", () => {
     expect(normalizeRichText('<img src="/media/00000000-0000-4000-8000-000000000000.webp" alt="Green preserved fern">'))
       .toContain('alt="Green preserved fern"');
+    expect(normalizeRichText('<p><img src="/media/00000000-0000-4000-8000-000000000000.webp" alt="Green preserved fern"></p>'))
+      .toContain('alt="Green preserved fern"');
+    expect(normalizeRichText('<figure><img src="/media/00000000-0000-4000-8000-000000000000.webp" alt="Green preserved fern"></figure>'))
+      .toContain('alt="Green preserved fern"');
   });
 
   it("drops image nodes with external or unsafe source paths", () => {

@@ -64,7 +64,12 @@ export function mountRichTextEditor(root: HTMLElement, options: Options): RichTe
 
   const uploader = createInlineImageUpload({
     onStateChange: (uploading) => {
-      status.textContent = uploading ? "正在上传图片…" : "";
+      if (uploading) {
+        status.removeAttribute("role");
+        status.textContent = "正在上传图片…";
+      } else if (status.getAttribute("role") !== "alert") {
+        status.textContent = "";
+      }
       options.onUploadStateChange?.(uploading);
     },
     onError: (message) => { status.textContent = message; status.setAttribute("role", "alert"); },

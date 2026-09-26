@@ -46,7 +46,7 @@ migrations_dir = "${resolve(workspace, "migrations")}"\n`,
 
   it("applies the forward-only normalization migration after the initial schema", () => {
     const migrations = query("SELECT name FROM d1_migrations ORDER BY id").map((row) => row.name);
-    expect(migrations).toEqual(["0001_initial.sql", "0002_schema_normalization.sql", "0003_rate_limits.sql", "0004_submission_idempotency.sql", "0005_submission_idempotency_ledger.sql", "0006_active_media_references.sql", "0007_page_media_references.sql"]);
+    expect(migrations).toEqual(["0001_initial.sql", "0002_schema_normalization.sql", "0003_rate_limits.sql", "0004_submission_idempotency.sql", "0005_submission_idempotency_ledger.sql", "0006_active_media_references.sql", "0007_page_media_references.sql", "0008_rich_text_media_references.sql"]);
   });
 
   it("enforces the idempotency ledger's type-specific reference pairing", () => {

@@ -224,6 +224,18 @@ export function initializeContentEditor(root: HTMLElement, options?: EditorOptio
     setBusy(true);
     clearErrors();
     try {
+      for (let index = 0; index < pageEditors.length; index++) {
+        const editor = pageEditors[index];
+        const mount = pageMounts[index];
+        if (!editor || !mount) continue;
+        try {
+          mount.control.value = JSON.stringify(editor.getValue());
+        } catch {
+          const error = new Error("页面区块内容有误，请修正后保存。") as ApiError;
+          error.fields = { sections: "请检查必填文字、图片描述和链接。" };
+          throw error;
+        }
+      }
       const data = readForm(form, entity);
       const creating = !record.id;
       const endpoint = creating ? `/api/admin/${entity}` : `/api/admin/${entity}/${encodeURIComponent(record.id ?? "")}`;

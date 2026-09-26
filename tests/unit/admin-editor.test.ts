@@ -25,4 +25,22 @@ describe("admin content editor media reuse", () => {
     expect(root.querySelector<HTMLInputElement>('input[type="hidden"][name="body"]')?.value).toBe("<p>First</p><p>Second</p>");
     controller.dispose();
   });
+
+  it("does not report a successful page save when a visible section is invalid", async () => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ ok: true, data: {} })));
+    vi.stubGlobal("fetch", fetch);
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    const controller = initializeContentEditor(root, { entity: "pages", record: { sections: [{ type: "hero", title: "About" }] } });
+    const title = Array.from(root.querySelectorAll<HTMLLabelElement>(".page-sections-editor__card label"))
+      .find((label) => label.textContent === "标题")?.querySelector("input");
+    expect(title).not.toBeNull();
+    title!.value = "";
+    title!.dispatchEvent(new Event("input", { bubbles: true }));
+    root.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+    await Promise.resolve();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(root.querySelector("[data-editor-status]")?.textContent).toContain("页面区块");
+    controller.dispose();
+  });
 });

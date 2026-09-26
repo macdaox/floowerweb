@@ -18,6 +18,7 @@ export function createInlineImageUpload(options: {
   input.hidden = true;
   document.body.appendChild(input);
   let destroyed = false;
+  const pending = new Set<AbortController>();
 
   const change = () => { if (input.files) void handleFiles(input.files); };
   input.addEventListener("change", change);
@@ -25,15 +26,18 @@ export function createInlineImageUpload(options: {
   async function handleFiles(files: FileList | File[]): Promise<void> {
     const file = Array.from(files).find((candidate) => candidate.type.startsWith("image/"));
     if (!file || destroyed) return;
-    const altText = window.prompt("请输入图片英文替代文本", file.name.replace(/\.[^.]+$/u, ""))?.trim() ?? "";
+    const altText = window.prompt("请输入图片英文替代文本", file.name.replace(/\.[^.]+$/u, ""))?.trim();
+    if (!altText) return;
+    const controller = new AbortController();
+    pending.add(controller);
     options.onStateChange?.(true);
     try {
-      const item = await uploadAdminImage(file, altText);
+      const item = await uploadAdminImage(file, altText, controller.signal);
       if (!destroyed) options.onInsert(item);
     } catch (error) {
       if (!destroyed) options.onError?.(error instanceof Error ? error.message : "图片上传失败，请重试。");
     } finally {
-      if (!destroyed) options.onStateChange?.(false);
+      if (pending.delete(controller)) options.onStateChange?.(false);
       input.value = "";
     }
   }
@@ -43,6 +47,11 @@ export function createInlineImageUpload(options: {
     handleFiles,
     destroy: () => {
       destroyed = true;
+      for (const controller of pending) {
+        controller.abort();
+        options.onStateChange?.(false);
+      }
+      pending.clear();
       input.removeEventListener("change", change);
       input.remove();
     },
