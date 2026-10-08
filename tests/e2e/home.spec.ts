@@ -67,3 +67,25 @@ test("home detail section preserves the original material treatment list", async
     "FinishedSubtle tonal variation by hand",
   ]);
 });
+
+test("home detail labels leave space before their descriptions", async ({ page }) => {
+  for (const width of [390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+
+    const rows = page.locator("#detail .detail-copy li");
+    for (const row of await rows.all()) {
+      const label = await row.locator("span").boundingBox();
+      const descriptionStart = await row.evaluate((element) => {
+        const text = [...element.childNodes].find((node) => node.nodeType === Node.TEXT_NODE);
+        if (!text) return null;
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        return range.getBoundingClientRect().left;
+      });
+      expect(label).not.toBeNull();
+      expect(descriptionStart).not.toBeNull();
+      expect(descriptionStart! - (label!.x + label!.width)).toBeGreaterThanOrEqual(12);
+    }
+  }
+});
