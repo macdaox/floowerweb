@@ -6,6 +6,7 @@ test("published product details are visible without commercial pricing", async (
   await expect(page.getByRole("heading", { name: /magnolia/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /specifications/i })).toBeVisible();
   await expect(page.locator(".product-gallery figure")).toHaveCount(1);
+  await expect(page.locator(".product-gallery-controls")).toHaveCount(0);
   await expect(page.getByText(/price/i)).toHaveCount(0);
   const inquiry = page.getByRole("form", { name: /inquire about magnolia/i });
   await expect(inquiry.getByRole("button", { name: /send inquiry/i })).toHaveAttribute("type", "submit");

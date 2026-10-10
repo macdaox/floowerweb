@@ -11,6 +11,20 @@ export function initializeProductGalleries(): void {
     gallery.dataset.initialized = "true";
     const items = [...gallery.querySelectorAll<HTMLElement>("[data-gallery-item]")];
     items.forEach((item, index) => item.setAttribute("tabindex", index === 0 ? "0" : "-1"));
+    if (items.length < 2) return;
+    const count = gallery.querySelector<HTMLElement>("[data-gallery-count]");
+    let activeIndex = 0;
+    function show(index: number, focus = false): void {
+      activeIndex = (index + items.length) % items.length;
+      items.forEach((item, itemIndex) => {
+        item.hidden = itemIndex !== activeIndex;
+        item.tabIndex = itemIndex === activeIndex ? 0 : -1;
+      });
+      if (count) count.textContent = `${activeIndex + 1} / ${items.length}`;
+      if (focus) items[activeIndex]?.focus();
+    }
+    gallery.querySelector("[data-gallery-previous]")?.addEventListener("click", () => show(activeIndex - 1));
+    gallery.querySelector("[data-gallery-next]")?.addEventListener("click", () => show(activeIndex + 1));
     gallery.addEventListener("keydown", (event) => {
       const current = (event.target as Element).closest<HTMLElement>("[data-gallery-item]");
       const currentIndex = current ? items.indexOf(current) : -1;
@@ -18,9 +32,23 @@ export function initializeProductGalleries(): void {
       const nextIndex = galleryIndexForKey((event as KeyboardEvent).key, currentIndex, items.length);
       if (nextIndex === currentIndex) return;
       event.preventDefault();
-      items.forEach((item, index) => item.setAttribute("tabindex", index === nextIndex ? "0" : "-1"));
-      items[nextIndex]?.focus();
+      show(nextIndex, true);
     });
+    let touchStartX: number | null = null;
+    let touchStartY: number | null = null;
+    gallery.addEventListener("touchstart", (event) => {
+      if (!event.target || !(event.target as Element).closest("[data-gallery-item]")) return;
+      touchStartX = event.touches[0]?.clientX ?? null;
+      touchStartY = event.touches[0]?.clientY ?? null;
+    }, { passive: true });
+    gallery.addEventListener("touchend", (event) => {
+      if (touchStartX === null || touchStartY === null) return;
+      const deltaX = (event.changedTouches[0]?.clientX ?? touchStartX) - touchStartX;
+      const deltaY = (event.changedTouches[0]?.clientY ?? touchStartY) - touchStartY;
+      touchStartX = null;
+      touchStartY = null;
+      if (Math.abs(deltaX) > 45 && Math.abs(deltaX) > Math.abs(deltaY)) show(activeIndex + (deltaX < 0 ? 1 : -1));
+    }, { passive: true });
   });
 }
 

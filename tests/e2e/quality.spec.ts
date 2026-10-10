@@ -178,6 +178,32 @@ test("product galleries move focus with arrow, Home, and End keys", async ({ pag
   await expect(items.first()).toBeFocused();
 });
 
+test("product gallery shows one image and switches with controls", async ({ page }) => {
+  await page.goto("/products/e2e-alt-product-primary");
+  const items = page.locator("[data-gallery-item]");
+  await expect(items).toHaveCount(2);
+  await expect(items.first()).toBeVisible();
+  await expect(items.last()).toBeHidden();
+  await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Next image" }).click();
+  await expect(items.first()).toBeHidden();
+  await expect(items.last()).toBeVisible();
+  await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Previous image" }).click();
+  await expect(items.first()).toBeVisible();
+});
+
+test("product gallery responds to a horizontal touch gesture", async ({ page }) => {
+  await page.goto("/products/e2e-alt-product-primary");
+  const items = page.locator("[data-gallery-item]");
+  await items.first().evaluate((item) => {
+    item.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, touches: [new Touch({ identifier: 1, target: item, clientX: 250, clientY: 100 })] }));
+    item.dispatchEvent(new TouchEvent("touchend", { bubbles: true, changedTouches: [new Touch({ identifier: 1, target: item, clientX: 100, clientY: 105 })] }));
+  });
+  await expect(items.last()).toBeVisible();
+  await expect(items.first()).toBeHidden();
+});
+
 test("headings, keyboard navigation, and reduced motion remain accessible", async ({ page }) => {
   for (const route of representativeRoutes) {
     await page.goto(route);

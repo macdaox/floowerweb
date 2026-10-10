@@ -40,7 +40,10 @@ const structuredData = product ? [
   <article>
     <section class="product-detail section">
       <div class="product-gallery" aria-label={`${product.name} gallery`} data-product-gallery>
-        {galleryImages.length ? <>{galleryImages.map((image, index) => <figure id={`image-${index}`} data-gallery-item aria-label={`Image ${index + 1} of ${galleryImages.length}`} tabindex={index === 0 ? "0" : "-1"}><ResponsiveImage image={image} fallbackWidth={1400} fallbackHeight={1750} widths={[480, 800, 1400]} sizes="(max-width: 800px) 100vw, 58vw" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : undefined} /><figcaption class="visually-hidden">Image {index + 1} of {galleryImages.length}</figcaption></figure>)}</> : <div class="gallery-empty">Product imagery will be available shortly.</div>}
+        {galleryImages.length ? <>
+          {galleryImages.map((image, index) => <figure id={`image-${index}`} data-gallery-item aria-label={`Image ${index + 1} of ${galleryImages.length}`} tabindex={index === 0 ? "0" : "-1"} hidden={index !== 0}><ResponsiveImage image={image} fallbackWidth={1400} fallbackHeight={1750} widths={[480, 800, 1400]} sizes="(max-width: 800px) 100vw, 58vw" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : undefined} /><figcaption class="visually-hidden">Image {index + 1} of {galleryImages.length}</figcaption></figure>)}
+          {galleryImages.length > 1 && <div class="product-gallery-controls"><button type="button" aria-label="Previous image" data-gallery-previous>←</button><span data-gallery-count aria-live="polite">1 / {galleryImages.length}</span><button type="button" aria-label="Next image" data-gallery-next>→</button></div>}
+        </> : <div class="gallery-empty">Product imagery will be available shortly.</div>}
       </div>
       <div class="product-copy">
         <p class="eyebrow"><a href={`/collections/${product.category.slug}`}>{product.category.name}</a></p>
